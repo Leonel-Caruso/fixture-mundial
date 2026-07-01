@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Pelota dorada">
+  <defs>
+    <radialGradient id="gold" cx="32%" cy="24%" r="72%">
+      <stop offset="0%" stop-color="#fff3bd"/>
+      <stop offset="28%" stop-color="#ffd46d"/>
+      <stop offset="58%" stop-color="#d89a32"/>
+      <stop offset="86%" stop-color="#8a551b"/>
+      <stop offset="100%" stop-color="#3d240c"/>
+    </radialGradient>
+    <linearGradient id="shine" x1="16" y1="8" x2="42" y2="42">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="32" cy="32" r="29" fill="url(#gold)"/>
+  <circle cx="32" cy="32" r="29" fill="none" stroke="#ffe7a4" stroke-opacity="0.55" stroke-width="2"/>
+
+  <!-- gajos simples de pelota -->
+  <g fill="none" stroke="#4a2a0d" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round" opacity="0.78">
+    <path d="M32 19 L44 27 L40 42 L24 42 L20 27 Z"/>
+    <path d="M32 19 C31 13 28 9 24 5"/>
+    <path d="M44 27 C51 25 56 22 60 18"/>
+    <path d="M40 42 C44 48 47 54 48 60"/>
+    <path d="M24 42 C20 48 17 54 16 60"/>
+    <path d="M20 27 C13 25 8 22 4 18"/>
+    <path d="M24 5 C16 10 10 18 7 27"/>
+    <path d="M40 5 C48 10 54 18 57 27"/>
+    <path d="M6 38 C11 43 17 46 24 42"/>
+    <path d="M58 38 C53 43 47 46 40 42"/>
+  </g>
+
+  <path d="M14 17 C20 9 30 6 39 9" fill="none" stroke="url(#shine)" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+  <circle cx="32" cy="32" r="29" fill="none" stroke="#000000" stroke-opacity="0.18" stroke-width="1"/>
+</svg>

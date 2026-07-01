@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fixture</title>
+  <link rel="icon" type="image/svg+xml" href="assets/golden-ball.svg" />
+  <link rel="shortcut icon" href="assets/golden-ball.svg" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="gold-particles" aria-hidden="true">
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+  <main class="app">
+
+    <nav class="fixture-actions" aria-label="Navegación principal">
+      <div class="tournament-title" aria-label="Mundial 2026">
+        <span class="tournament-title__text">Mundial 2026</span>
+      </div>
+
+      <button id="navToggle" class="nav-toggle" type="button" aria-label="Abrir menú" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
+      <button id="fixtureButton" class="action-button fixture-button" type="button">
+        Fixture
+      </button>
+
+      <button id="groupsButton" class="action-button groups-button" type="button">
+        Grupos
+      </button>
+
+      <button id="predictionButton" class="action-button prediction-button" type="button">
+        Predicción
+      </button>
+
+      <button id="resetButton" class="action-button reset-button" type="button">
+        Reiniciar
+      </button>
+    </nav>
+
+    <section id="todayPanel" class="today-panel">
+      <div class="today-panel__header">
+        <span class="today-panel__eyebrow">Partidos</span>
+        <h2>Hoy</h2>
+      </div>
+
+      <div id="todayMatches" class="today-matches"></div>
+    </section>
+
+    <section id="groupsPanel" class="groups-panel" hidden>
+      <div class="groups-panel__header">
+        <div>
+          <span class="groups-panel__eyebrow">Fase de grupos</span>
+          <h2>Grupos</h2>
+        </div>
+      </div>
+
+      <div id="groupsGrid" class="groups-grid"></div>
+    </section>
+
+    <div class="fixture-shell">
+      <div id="fixture" class="fixture"></div>
+    </div>
+
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

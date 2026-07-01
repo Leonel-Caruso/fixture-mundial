@@ -1,0 +1,50 @@
+[
+  {
+    "id": "rsa-can",
+    "status": "finished",
+    "scoreA": "0",
+    "scoreB": "1",
+    "winnerId": "can",
+    "minute": null
+  },
+  {
+    "id": "ned-mar",
+    "status": "finished",
+    "scoreA": "1 (2)",
+    "scoreB": "1 (3)",
+    "winnerId": "mar",
+    "minute": null
+  },
+  {
+    "id": "ger-par",
+    "status": "finished",
+    "scoreA": "1 (3)",
+    "scoreB": "1 (4)",
+    "winnerId": "par",
+    "minute": null
+  },
+  {
+    "id": "bra-jpn",
+    "status": "finished",
+    "scoreA": "2",
+    "scoreB": "1",
+    "winnerId": "bra",
+    "minute": null
+  },
+  {
+    "id": "civ-nor",
+    "status": "finished",
+    "scoreA": "1",
+    "scoreB": "2",
+    "winnerId": "nor",
+    "minute": null
+  },
+  {
+    "id": "fra-swe",
+    "status": "finished",
+    "scoreA": "3",
+    "scoreB": "0",
+    "winnerId": "fra",
+    "minute": null
+  }
+]
