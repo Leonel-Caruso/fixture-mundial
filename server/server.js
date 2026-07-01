@@ -30,6 +30,9 @@ app.get("/api/debug/config", (_req, res) => {
     espnBaseUrl: getEspnConfig().baseUrl,
     espnDates: getEspnConfig().dates,
     worldcup26BaseUrl: getWorldCup26Config().baseUrl,
+    footballDataBaseUrl: getFootballDataConfig().baseUrl,
+    footballDataCompetition: getFootballDataConfig().competition,
+    hasFootballDataKey: Boolean(process.env.FOOTBALL_DATA_KEY),
     tournamentStartDate: getApiConfig().from,
     tournamentEndDate: getApiConfig().to,
     lookaheadDays: Number(process.env.LOOKAHEAD_DAYS || 14),
@@ -150,6 +153,63 @@ app.get("/api/debug/worldcup26", async (_req, res) => {
   }
 });
 
+
+app.get("/api/debug/football-data", async (_req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  if (getProvider() !== "football-data") {
+    return res.status(400).json({
+      ok: false,
+      error: "API_PROVIDER no está en football-data.",
+      provider: getProvider()
+    });
+  }
+
+  if (!process.env.FOOTBALL_DATA_KEY) {
+    return res.status(400).json({ ok: false, error: "Falta FOOTBALL_DATA_KEY." });
+  }
+
+  try {
+    const config = getFootballDataConfig();
+    const payload = await requestFootballData(`/competitions/${config.competition}/matches`, {
+      dateFrom: config.from,
+      dateTo: config.to
+    });
+    const todayPayload = await requestFootballData("/matches", {
+      dateFrom: getISODate(new Date()),
+      dateTo: getISODate(new Date())
+    });
+    const matches = mergeFootballDataMatches(
+      Array.isArray(payload.matches) ? payload.matches : [],
+      Array.isArray(todayPayload.matches) ? todayPayload.matches : []
+    );
+    const mapped = mapFootballDataMatchesToLocalUpdates(matches);
+
+    res.json({
+      ok: true,
+      config,
+      competitionRequest: {
+        count: payload.count,
+        filters: payload.filters,
+        resultSet: payload.resultSet,
+        matchesReceived: Array.isArray(payload.matches) ? payload.matches.length : 0
+      },
+      todayRequest: {
+        count: todayPayload.count,
+        filters: todayPayload.filters,
+        resultSet: todayPayload.resultSet,
+        matchesReceived: Array.isArray(todayPayload.matches) ? todayPayload.matches.length : 0
+      },
+      combinedMatches: matches.length,
+      mappedUpdates: mapped.length,
+      mapped,
+      sampleMatches: matches.slice(0, 30).map(summarizeFootballDataMatch)
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 app.get("/api/matches", async (_req, res) => {
   try {
     const updates = await getNormalizedUpdates();
@@ -171,6 +231,7 @@ function getProvider() {
   if (provider === "api-football") return "api-football";
   if (provider === "espn") return "espn";
   if (["worldcup26", "worldcup26-ir", "worldcup26ir"].includes(provider)) return "worldcup26";
+  if (["football-data", "footballdata", "football-data.org"].includes(provider)) return "football-data";
   return "mock";
 }
 
@@ -188,6 +249,20 @@ function getApiConfig() {
 }
 
 async function getNormalizedUpdates() {
+  if (getProvider() === "football-data") {
+    if (!process.env.FOOTBALL_DATA_KEY) {
+      console.warn("API_PROVIDER=football-data, pero falta FOOTBALL_DATA_KEY. Uso mock.");
+      return readMockUpdates();
+    }
+
+    try {
+      return await fetchFootballDataUpdates();
+    } catch (error) {
+      console.warn("No se pudo consultar football-data.org. Uso mock.", error.message);
+      return readMockUpdates();
+    }
+  }
+
   if (getProvider() === "worldcup26") {
     try {
       return await fetchWorldCup26Updates();
@@ -231,6 +306,207 @@ async function readMockUpdates() {
   return Array.isArray(data) ? data : [];
 }
 
+
+
+function getFootballDataConfig() {
+  const from = process.env.TOURNAMENT_START_DATE || getISODate(new Date());
+  const to = addDaysISO(new Date(), Number(process.env.LOOKAHEAD_DAYS || 30));
+
+  return {
+    baseUrl: process.env.FOOTBALL_DATA_BASE_URL || "https://api.football-data.org/v4",
+    competition: process.env.FOOTBALL_DATA_COMPETITION || "WC",
+    from,
+    to
+  };
+}
+
+async function fetchFootballDataUpdates() {
+  const config = getFootballDataConfig();
+  const rangePayload = await requestFootballData(`/competitions/${config.competition}/matches`, {
+    dateFrom: config.from,
+    dateTo: config.to
+  });
+
+  // Consulta del día también: ayuda cuando un partido cruza de fecha o el torneo filtra distinto.
+  const todayPayload = await requestFootballData("/matches", {
+    dateFrom: getISODate(new Date()),
+    dateTo: getISODate(new Date())
+  });
+
+  const matches = mergeFootballDataMatches(
+    Array.isArray(rangePayload.matches) ? rangePayload.matches : [],
+    Array.isArray(todayPayload.matches) ? todayPayload.matches : []
+  );
+
+  const updates = mapFootballDataMatchesToLocalUpdates(matches);
+
+  if (updates.length === 0) {
+    console.warn("football-data.org respondió, pero no se pudo mapear ningún partido local.");
+    console.warn("Partidos recibidos:", matches.slice(0, 12).map((match) => `${footballDataTeamName(match?.homeTeam)} vs ${footballDataTeamName(match?.awayTeam)}`).join(" | "));
+  }
+
+  return updates;
+}
+
+async function requestFootballData(endpoint, params) {
+  const config = getFootballDataConfig();
+  const url = new URL(`${config.baseUrl.replace(/\/$/, "")}${endpoint}`);
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      url.searchParams.set(key, String(value));
+    }
+  });
+
+  const response = await fetch(url, {
+    headers: {
+      "accept": "application/json",
+      "X-Auth-Token": process.env.FOOTBALL_DATA_KEY,
+      "user-agent": "fixture-mundial/1.0"
+    }
+  });
+
+  const payload = await response.json().catch(async () => {
+    const text = await response.text().catch(() => "");
+    return { error: text || "No se pudo parsear JSON." };
+  });
+
+  if (!response.ok) {
+    throw new Error(`football-data.org HTTP ${response.status}: ${JSON.stringify(payload).slice(0, 700)}`);
+  }
+
+  return payload;
+}
+
+function mergeFootballDataMatches(...lists) {
+  const byId = new Map();
+  lists.flat().filter(Boolean).forEach((match) => {
+    const id = match?.id || `${footballDataTeamName(match?.homeTeam)}-${footballDataTeamName(match?.awayTeam)}-${match?.utcDate}`;
+    byId.set(String(id), match);
+  });
+  return Array.from(byId.values());
+}
+
+function mapFootballDataMatchesToLocalUpdates(matches) {
+  const updates = [];
+
+  MATCH_MAP.forEach((localMatch) => {
+    const external = matches.find((match) => matchesLocalFootballDataGame(localMatch, match));
+    if (!external) return;
+
+    updates.push(normalizeFootballDataMatch(localMatch, external));
+  });
+
+  return updates;
+}
+
+function matchesLocalFootballDataGame(localMatch, match) {
+  const homeTeam = match?.homeTeam || {};
+  const awayTeam = match?.awayTeam || {};
+  const homeName = footballDataTeamName(homeTeam);
+  const awayName = footballDataTeamName(awayTeam);
+
+  const homeMatchesA = teamMatches(localMatch.teamA, homeName, footballDataTeamPayload(homeTeam));
+  const awayMatchesB = teamMatches(localMatch.teamB, awayName, footballDataTeamPayload(awayTeam));
+  const homeMatchesB = teamMatches(localMatch.teamB, homeName, footballDataTeamPayload(homeTeam));
+  const awayMatchesA = teamMatches(localMatch.teamA, awayName, footballDataTeamPayload(awayTeam));
+
+  return (homeMatchesA && awayMatchesB) || (homeMatchesB && awayMatchesA);
+}
+
+function normalizeFootballDataMatch(localMatch, match) {
+  const homeTeam = match?.homeTeam || {};
+  const localAIsHome = teamMatches(localMatch.teamA, footballDataTeamName(homeTeam), footballDataTeamPayload(homeTeam));
+  const status = normalizeFootballDataStatus(match?.status);
+
+  const homeScore = getFootballDataScore(match, "home");
+  const awayScore = getFootballDataScore(match, "away");
+  const homePenalty = getFootballDataPenalty(match, "home");
+  const awayPenalty = getFootballDataPenalty(match, "away");
+
+  const scoreA = formatFootballDataScore(localAIsHome ? homeScore : awayScore, localAIsHome ? homePenalty : awayPenalty, status);
+  const scoreB = formatFootballDataScore(localAIsHome ? awayScore : homeScore, localAIsHome ? awayPenalty : homePenalty, status);
+
+  return {
+    id: localMatch.id,
+    status,
+    scoreA,
+    scoreB,
+    winnerId: resolveFootballDataWinnerId(localMatch, match, scoreA, scoreB, localAIsHome),
+    minute: null,
+    kickoffISO: match?.utcDate || localMatch.kickoffISO
+  };
+}
+
+function footballDataTeamName(team) {
+  return [team?.name, team?.shortName, team?.tla].filter(Boolean).join(" ");
+}
+
+function footballDataTeamPayload(team) {
+  return {
+    name: team?.name,
+    code: team?.tla,
+    country: team?.shortName
+  };
+}
+
+function normalizeFootballDataStatus(value) {
+  const status = String(value || "").toUpperCase();
+  if (["FINISHED"].includes(status)) return "finished";
+  if (["LIVE", "IN_PLAY", "PAUSED"].includes(status)) return "live";
+  return "scheduled";
+}
+
+function getFootballDataScore(match, side) {
+  const score = match?.score || {};
+  const candidates = [
+    score.fullTime?.[side],
+    score.regularTime?.[side],
+    score.halfTime?.[side]
+  ];
+  const found = candidates.find((value) => value !== undefined && value !== null && value !== "");
+  return found === undefined ? null : found;
+}
+
+function getFootballDataPenalty(match, side) {
+  const value = match?.score?.penalties?.[side];
+  return value === undefined ? null : value;
+}
+
+function formatFootballDataScore(goals, penalties, status) {
+  const g = NumberOrNull(goals);
+  const p = NumberOrNull(penalties);
+
+  if (g === null) return status === "scheduled" ? "0" : "";
+  if (p !== null) return `${g} (${p})`;
+  return String(g);
+}
+
+function resolveFootballDataWinnerId(localMatch, match, scoreA, scoreB, localAIsHome) {
+  if (normalizeFootballDataStatus(match?.status) !== "finished") return null;
+
+  const winner = String(match?.score?.winner || "").toUpperCase();
+  if (winner === "HOME_TEAM") return localAIsHome ? localMatch.teamA.id : localMatch.teamB.id;
+  if (winner === "AWAY_TEAM") return localAIsHome ? localMatch.teamB.id : localMatch.teamA.id;
+
+  const a = NumberOrNull(String(scoreA).replace(/\s*\(.*\)$/, ""));
+  const b = NumberOrNull(String(scoreB).replace(/\s*\(.*\)$/, ""));
+  if (a !== null && b !== null && a !== b) return a > b ? localMatch.teamA.id : localMatch.teamB.id;
+  return null;
+}
+
+function summarizeFootballDataMatch(match) {
+  return {
+    id: match?.id,
+    utcDate: match?.utcDate,
+    status: match?.status,
+    stage: match?.stage,
+    group: match?.group,
+    matchday: match?.matchday,
+    home: match?.homeTeam ? { id: match.homeTeam.id, name: match.homeTeam.name, shortName: match.homeTeam.shortName, tla: match.homeTeam.tla } : null,
+    away: match?.awayTeam ? { id: match.awayTeam.id, name: match.awayTeam.name, shortName: match.awayTeam.shortName, tla: match.awayTeam.tla } : null,
+    score: match?.score
+  };
+}
 
 
 function getWorldCup26Config() {

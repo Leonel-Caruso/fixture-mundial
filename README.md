@@ -150,3 +150,25 @@ API_FOOTBALL_KEY=TU_API_KEY
 ```
 
 Pero el plan gratis de API-FOOTBALL puede no tener acceso a temporada 2026.
+
+
+## Proveedor football-data.org
+
+Esta versión permite usar:
+
+```env
+API_PROVIDER=football-data
+FOOTBALL_DATA_KEY=TU_TOKEN_DE_FOOTBALL_DATA
+FOOTBALL_DATA_BASE_URL=https://api.football-data.org/v4
+FOOTBALL_DATA_COMPETITION=WC
+TOURNAMENT_START_DATE=2026-06-28
+LOOKAHEAD_DAYS=30
+```
+
+Endpoints de diagnóstico:
+
+- `/api/health`
+- `/api/matches`
+- `/api/debug/football-data`
+
+Importante: el plan gratuito de football-data.org incluye fixtures, tablas y scores demorados. Para marcador en vivo real hace falta el plan con livescores.
