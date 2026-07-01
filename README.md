@@ -172,3 +172,12 @@ Endpoints de diagnóstico:
 - `/api/debug/football-data`
 
 Importante: el plan gratuito de football-data.org incluye fixtures, tablas y scores demorados. Para marcador en vivo real hace falta el plan con livescores.
+
+
+## Ajuste marcador football-data.org
+
+Esta versión evita mostrar `2 (0) - 0 (0)` cuando football-data.org informa penalties en cero.
+Solo muestra penales cuando realmente hubo definición por penales.
+
+También evita inventar el minuto del partido usando la hora de inicio. Si el proveedor no informa minuto real,
+la tarjeta muestra `EN VIVO` sin minuto para no mostrar un dato incorrecto cuando hay demoras o retrasos.

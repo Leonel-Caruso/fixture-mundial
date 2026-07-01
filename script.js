@@ -991,7 +991,13 @@ function getComputedMatchStatus(match, now = new Date()) {
     Si la API luego informa goles, minuto o finalizado, esos datos pisan este fallback.
   */
   if (isExplicitLive || shouldShowLiveByTime) {
-    const minute = formatLiveMinute(match.minute ?? Math.max(0, elapsedMinutes));
+    /*
+      No inventamos el minuto con la hora de inicio porque, si el partido
+      se atrasó o el proveedor no informa elapsed time, puede quedar mal.
+      Solo mostramos minuto cuando la API lo envía explícitamente.
+    */
+    const hasReliableMinute = match.minute !== null && match.minute !== undefined && match.minute !== "";
+    const minuteMarkup = hasReliableMinute ? `<strong>${formatLiveMinute(match.minute)}</strong>` : "";
 
     return {
       hidden: false,
@@ -1001,7 +1007,7 @@ function getComputedMatchStatus(match, now = new Date()) {
       statusMarkup: `
         <span class="live-dot"></span>
         <span>EN VIVO</span>
-        <strong>${minute}</strong>
+        ${minuteMarkup}
       `,
       sortMinutes: kickoffMinutes,
       scoreA: getLiveScore(match.scoreA),

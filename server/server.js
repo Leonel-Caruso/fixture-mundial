@@ -422,9 +422,10 @@ function normalizeFootballDataMatch(localMatch, match) {
   const awayScore = getFootballDataScore(match, "away");
   const homePenalty = getFootballDataPenalty(match, "home");
   const awayPenalty = getFootballDataPenalty(match, "away");
+  const showPenalties = hasFootballDataPenaltyShootout(homePenalty, awayPenalty, status);
 
-  const scoreA = formatFootballDataScore(localAIsHome ? homeScore : awayScore, localAIsHome ? homePenalty : awayPenalty, status);
-  const scoreB = formatFootballDataScore(localAIsHome ? awayScore : homeScore, localAIsHome ? awayPenalty : homePenalty, status);
+  const scoreA = formatFootballDataScore(localAIsHome ? homeScore : awayScore, localAIsHome ? homePenalty : awayPenalty, status, showPenalties);
+  const scoreB = formatFootballDataScore(localAIsHome ? awayScore : homeScore, localAIsHome ? awayPenalty : homePenalty, status, showPenalties);
 
   return {
     id: localMatch.id,
@@ -458,11 +459,19 @@ function normalizeFootballDataStatus(value) {
 
 function getFootballDataScore(match, side) {
   const score = match?.score || {};
+
+  /*
+    football-data.org puede devolver fullTime incluyendo definición por penales
+    y, además, score.penalties. Para mostrar un marcador futbolero prolijo
+    preferimos regularTime cuando existe. Ejemplo correcto:
+    1 (2) - 1 (3), no 3 (2) - 4 (3).
+  */
   const candidates = [
-    score.fullTime?.[side],
     score.regularTime?.[side],
+    score.fullTime?.[side],
     score.halfTime?.[side]
   ];
+
   const found = candidates.find((value) => value !== undefined && value !== null && value !== "");
   return found === undefined ? null : found;
 }
@@ -472,12 +481,23 @@ function getFootballDataPenalty(match, side) {
   return value === undefined ? null : value;
 }
 
-function formatFootballDataScore(goals, penalties, status) {
+function hasFootballDataPenaltyShootout(homePenalty, awayPenalty, status) {
+  const home = NumberOrNull(homePenalty);
+  const away = NumberOrNull(awayPenalty);
+
+  if (status !== "finished") return false;
+  if (home === null || away === null) return false;
+
+  // Algunos proveedores informan penalties: 0-0 aunque el partido no haya ido a penales.
+  return home > 0 || away > 0;
+}
+
+function formatFootballDataScore(goals, penalties, status, showPenalties = false) {
   const g = NumberOrNull(goals);
   const p = NumberOrNull(penalties);
 
   if (g === null) return status === "scheduled" ? "0" : "";
-  if (p !== null) return `${g} (${p})`;
+  if (showPenalties && p !== null) return `${g} (${p})`;
   return String(g);
 }
 
