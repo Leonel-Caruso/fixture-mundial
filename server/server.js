@@ -29,6 +29,7 @@ app.get("/api/debug/config", (_req, res) => {
     apiFootballSeason: getApiConfig().season,
     espnBaseUrl: getEspnConfig().baseUrl,
     espnDates: getEspnConfig().dates,
+    worldcup26BaseUrl: getWorldCup26Config().baseUrl,
     tournamentStartDate: getApiConfig().from,
     tournamentEndDate: getApiConfig().to,
     lookaheadDays: Number(process.env.LOOKAHEAD_DAYS || 14),
@@ -118,6 +119,37 @@ app.get("/api/debug/espn", async (_req, res) => {
   }
 });
 
+
+app.get("/api/debug/worldcup26", async (_req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  if (getProvider() !== "worldcup26") {
+    return res.status(400).json({
+      ok: false,
+      error: "API_PROVIDER no está en worldcup26.",
+      provider: getProvider()
+    });
+  }
+
+  try {
+    const config = getWorldCup26Config();
+    const payload = await requestWorldCup26Games();
+    const games = extractWorldCup26Games(payload);
+    const mapped = mapWorldCup26GamesToLocalUpdates(games);
+
+    res.json({
+      ok: true,
+      config,
+      gamesReceived: games.length,
+      mappedUpdates: mapped.length,
+      mapped,
+      sampleGames: games.slice(0, 30).map(summarizeWorldCup26Game)
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 app.get("/api/matches", async (_req, res) => {
   try {
     const updates = await getNormalizedUpdates();
@@ -138,6 +170,7 @@ function getProvider() {
   const provider = String(process.env.API_PROVIDER || "mock").trim().toLowerCase();
   if (provider === "api-football") return "api-football";
   if (provider === "espn") return "espn";
+  if (["worldcup26", "worldcup26-ir", "worldcup26ir"].includes(provider)) return "worldcup26";
   return "mock";
 }
 
@@ -155,6 +188,15 @@ function getApiConfig() {
 }
 
 async function getNormalizedUpdates() {
+  if (getProvider() === "worldcup26") {
+    try {
+      return await fetchWorldCup26Updates();
+    } catch (error) {
+      console.warn("No se pudo consultar worldcup26.ir. Uso mock.", error.message);
+      return readMockUpdates();
+    }
+  }
+
   if (getProvider() === "espn") {
     try {
       return await fetchEspnUpdates();
@@ -189,6 +231,180 @@ async function readMockUpdates() {
   return Array.isArray(data) ? data : [];
 }
 
+
+
+function getWorldCup26Config() {
+  return {
+    baseUrl: process.env.WORLDCUP26_BASE_URL || "https://worldcup26.ir/get/games"
+  };
+}
+
+async function fetchWorldCup26Updates() {
+  const payload = await requestWorldCup26Games();
+  const games = extractWorldCup26Games(payload);
+  const updates = mapWorldCup26GamesToLocalUpdates(games);
+
+  if (updates.length === 0) {
+    console.warn("worldcup26.ir respondió, pero no se pudo mapear ningún partido local.");
+    console.warn("Juegos recibidos:", games.slice(0, 12).map((game) => `${game?.home_team_name_en || game?.home_team_label} vs ${game?.away_team_name_en || game?.away_team_label}`).join(" | "));
+  }
+
+  return updates;
+}
+
+async function requestWorldCup26Games() {
+  const config = getWorldCup26Config();
+  const response = await fetch(config.baseUrl, {
+    headers: {
+      "accept": "application/json",
+      "user-agent": "fixture-mundial/1.0"
+    }
+  });
+
+  const payload = await response.json().catch(async () => {
+    const text = await response.text().catch(() => "");
+    return { error: text || "No se pudo parsear JSON.", games: [] };
+  });
+
+  if (!response.ok) {
+    throw new Error(`worldcup26.ir HTTP ${response.status}: ${JSON.stringify(payload).slice(0, 500)}`);
+  }
+
+  return payload;
+}
+
+function extractWorldCup26Games(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.games)) return payload.games;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.matches)) return payload.matches;
+  return [];
+}
+
+function mapWorldCup26GamesToLocalUpdates(games) {
+  const updates = [];
+
+  MATCH_MAP.forEach((localMatch) => {
+    const external = games.find((game) => matchesLocalWorldCup26Game(localMatch, game));
+    if (!external) return;
+
+    updates.push(normalizeWorldCup26Game(localMatch, external));
+  });
+
+  return updates;
+}
+
+function matchesLocalWorldCup26Game(localMatch, game) {
+  const homeName = getWorldCup26HomeName(game);
+  const awayName = getWorldCup26AwayName(game);
+
+  const homeMatchesA = teamMatches(localMatch.teamA, homeName, { name: homeName });
+  const awayMatchesB = teamMatches(localMatch.teamB, awayName, { name: awayName });
+  const homeMatchesB = teamMatches(localMatch.teamB, homeName, { name: homeName });
+  const awayMatchesA = teamMatches(localMatch.teamA, awayName, { name: awayName });
+
+  return (homeMatchesA && awayMatchesB) || (homeMatchesB && awayMatchesA);
+}
+
+function normalizeWorldCup26Game(localMatch, game) {
+  const homeName = getWorldCup26HomeName(game);
+  const localAIsHome = teamMatches(localMatch.teamA, homeName, { name: homeName });
+
+  const homeScore = normalizeWorldCup26Score(game?.home_score);
+  const awayScore = normalizeWorldCup26Score(game?.away_score);
+
+  const scoreA = localAIsHome ? homeScore : awayScore;
+  const scoreB = localAIsHome ? awayScore : homeScore;
+
+  const status = normalizeWorldCup26Status(game);
+  const winnerId = status === "finished" ? resolveWorldCup26WinnerId(localMatch, scoreA, scoreB) : null;
+
+  return {
+    id: localMatch.id,
+    status,
+    scoreA: scoreA === "" ? (status === "scheduled" ? "0" : "") : scoreA,
+    scoreB: scoreB === "" ? (status === "scheduled" ? "0" : "") : scoreB,
+    winnerId,
+    minute: normalizeWorldCup26Minute(game, status),
+    kickoffISO: parseWorldCup26Date(game?.local_date) || localMatch.kickoffISO
+  };
+}
+
+function getWorldCup26HomeName(game) {
+  return [game?.home_team_name_en, game?.home_team_label, game?.home_team_name, game?.homeTeamName, game?.home]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function getWorldCup26AwayName(game) {
+  return [game?.away_team_name_en, game?.away_team_label, game?.away_team_name, game?.awayTeamName, game?.away]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function normalizeWorldCup26Score(value) {
+  if (value === undefined || value === null || String(value).toLowerCase() === "null") return "";
+  return String(value).trim();
+}
+
+function normalizeWorldCup26Status(game) {
+  const finished = String(game?.finished || "").trim().toLowerCase();
+  const elapsed = String(game?.time_elapsed || game?.status || "").trim().toLowerCase();
+
+  if (finished === "true" || elapsed === "finished" || elapsed === "ft" || elapsed === "fulltime" || elapsed === "full time") {
+    return "finished";
+  }
+
+  if (elapsed && !["false", "notstarted", "not started", "scheduled", "upcoming", "null", "0"].includes(elapsed)) {
+    return "live";
+  }
+
+  return "scheduled";
+}
+
+function normalizeWorldCup26Minute(game, status) {
+  if (status !== "live") return null;
+
+  const elapsed = String(game?.time_elapsed || "");
+  const match = elapsed.match(/(\d+)/);
+  if (match) return Number(match[1]);
+
+  return null;
+}
+
+function resolveWorldCup26WinnerId(localMatch, scoreA, scoreB) {
+  const a = NumberOrNull(scoreA);
+  const b = NumberOrNull(scoreB);
+  if (a !== null && b !== null && a !== b) return a > b ? localMatch.teamA.id : localMatch.teamB.id;
+  return null;
+}
+
+function parseWorldCup26Date(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  const match = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const [, month, day, year, hour, minute] = match;
+
+  // worldcup26.ir publica los horarios en formato MM/DD/YYYY HH:mm.
+  // Los dejamos con offset de Argentina para que el frontend pueda ordenar y filtrar correctamente.
+  return `${year}-${month}-${day}T${String(hour).padStart(2, "0")}:${minute}:00-03:00`;
+}
+
+function summarizeWorldCup26Game(game) {
+  return {
+    id: game?.id,
+    local_date: game?.local_date,
+    type: game?.type,
+    group: game?.group,
+    finished: game?.finished,
+    time_elapsed: game?.time_elapsed,
+    home: getWorldCup26HomeName(game),
+    away: getWorldCup26AwayName(game),
+    home_score: game?.home_score,
+    away_score: game?.away_score
+  };
+}
 
 function getEspnConfig() {
   const from = process.env.TOURNAMENT_START_DATE || getISODate(new Date());

@@ -1,5 +1,30 @@
 # Fixture Mundial 2026
 
+## Proveedor gratis recomendado
+
+Esta versión agrega soporte para `worldcup26.ir`, una API gratuita del Mundial 2026 sin API key.
+
+En Render usá:
+
+```env
+API_PROVIDER=worldcup26
+WORLDCUP26_BASE_URL=https://worldcup26.ir/get/games
+```
+
+Después hacé **Manual Deploy → Deploy latest commit**.
+
+Endpoints útiles:
+
+```txt
+/api/health
+/api/matches
+/api/debug/worldcup26
+```
+
+---
+
+# Fixture Mundial 2026
+
 Proyecto frontend + backend Node/Express para un fixture circular con:
 
 - modo **Fixture** oficial.
