@@ -2765,3 +2765,52 @@ body.fixture-mode .reset-button {
     gap: 0 !important;
   }
 }
+
+
+/* =========================================================
+   AJUSTE MOBILE - REINICIAR SOLO DENTRO DEL MENÚ
+   En celular/tablet el botón Reiniciar no queda visible debajo del header.
+   Solo aparece al abrir la hamburguesa y únicamente en modo Predicción.
+========================================================= */
+
+@media (max-width: 1180px) {
+  .fixture-actions .reset-button {
+    display: none !important;
+    position: static !important;
+    grid-column: 1 / -1 !important;
+    justify-self: end !important;
+    width: min(270px, calc(100vw - 28px)) !important;
+    margin: 0 !important;
+    transform: none !important;
+  }
+
+  body.prediction-mode:not(.groups-view) .fixture-actions.is-open .reset-button {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  body.fixture-mode .fixture-actions .reset-button,
+  body.groups-view .fixture-actions .reset-button,
+  body.fixture-mode .fixture-actions.is-open .reset-button,
+  body.groups-view .fixture-actions.is-open .reset-button {
+    display: none !important;
+  }
+
+  .fixture-actions:not(.is-open) .action-button,
+  .fixture-actions:not(.is-open) .reset-button {
+    display: none !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .fixture-actions.is-open {
+    padding-bottom: 12px !important;
+  }
+
+  .fixture-actions.is-open .action-button,
+  body.prediction-mode:not(.groups-view) .fixture-actions.is-open .reset-button {
+    width: min(270px, calc(100vw - 24px)) !important;
+    min-height: 42px !important;
+  }
+}
