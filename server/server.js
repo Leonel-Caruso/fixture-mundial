@@ -19,6 +19,68 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true, provider: getProvider(), now: new Date().toISOString() });
 });
 
+app.get("/api/debug/config", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({
+    provider: getProvider(),
+    hasApiFootballKey: Boolean(process.env.API_FOOTBALL_KEY),
+    apiFootballBaseUrl: getApiConfig().baseUrl,
+    apiFootballLeagueId: getApiConfig().league,
+    apiFootballSeason: getApiConfig().season,
+    tournamentStartDate: getApiConfig().from,
+    tournamentEndDate: getApiConfig().to,
+    lookaheadDays: Number(process.env.LOOKAHEAD_DAYS || 14),
+    timezone: "America/Argentina/Buenos_Aires"
+  });
+});
+
+app.get("/api/debug/api-football", async (_req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  if (getProvider() !== "api-football") {
+    return res.status(400).json({
+      ok: false,
+      error: "API_PROVIDER no está en api-football.",
+      provider: getProvider()
+    });
+  }
+
+  if (!process.env.API_FOOTBALL_KEY) {
+    return res.status(400).json({ ok: false, error: "Falta API_FOOTBALL_KEY." });
+  }
+
+  try {
+    const config = getApiConfig();
+    const rangePayload = await requestApiFootball("/fixtures", {
+      league: config.league,
+      season: config.season,
+      from: config.from,
+      to: config.to,
+      timezone: "America/Argentina/Buenos_Aires"
+    });
+
+    const livePayload = await requestApiFootball("/fixtures", { live: "all" });
+
+    const rangeFixtures = Array.isArray(rangePayload.response) ? rangePayload.response : [];
+    const liveFixtures = Array.isArray(livePayload.response) ? livePayload.response : [];
+    const combined = mergeFixtures(rangeFixtures, liveFixtures);
+    const mapped = mapExternalFixturesToLocalUpdates(combined);
+
+    res.json({
+      ok: true,
+      config,
+      range: summarizePayload(rangePayload, rangeFixtures),
+      liveAll: summarizePayload(livePayload, liveFixtures),
+      combinedFixtures: combined.length,
+      mappedUpdates: mapped.length,
+      mapped,
+      sampleFixtures: combined.slice(0, 25).map(summarizeFixture)
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 app.get("/api/matches", async (_req, res) => {
   try {
     const updates = await getNormalizedUpdates();
@@ -39,6 +101,19 @@ function getProvider() {
   const provider = String(process.env.API_PROVIDER || "mock").trim().toLowerCase();
   if (provider === "api-football") return "api-football";
   return "mock";
+}
+
+function getApiConfig() {
+  const from = process.env.TOURNAMENT_START_DATE || getISODate(new Date());
+  const to = addDaysISO(new Date(), Number(process.env.LOOKAHEAD_DAYS || 14));
+
+  return {
+    baseUrl: process.env.API_FOOTBALL_BASE_URL || "https://v3.football.api-sports.io",
+    league: process.env.API_FOOTBALL_LEAGUE_ID || "1",
+    season: process.env.API_FOOTBALL_SEASON || "2026",
+    from,
+    to
+  };
 }
 
 async function getNormalizedUpdates() {
@@ -68,18 +143,42 @@ async function readMockUpdates() {
 }
 
 async function fetchApiFootballUpdates() {
-  const baseUrl = process.env.API_FOOTBALL_BASE_URL || "https://v3.football.api-sports.io";
-  const league = process.env.API_FOOTBALL_LEAGUE_ID || "1";
-  const season = process.env.API_FOOTBALL_SEASON || "2026";
-  const from = process.env.TOURNAMENT_START_DATE || getISODate(new Date());
-  const to = addDaysISO(new Date(), Number(process.env.LOOKAHEAD_DAYS || 14));
+  const config = getApiConfig();
 
-  const url = new URL(`${baseUrl.replace(/\/$/, "")}/fixtures`);
-  url.searchParams.set("league", league);
-  url.searchParams.set("season", season);
-  url.searchParams.set("from", from);
-  url.searchParams.set("to", to);
-  url.searchParams.set("timezone", "America/Argentina/Buenos_Aires");
+  const rangePayload = await requestApiFootball("/fixtures", {
+    league: config.league,
+    season: config.season,
+    from: config.from,
+    to: config.to,
+    timezone: "America/Argentina/Buenos_Aires"
+  });
+
+  // Mejora importante: los partidos en vivo se consultan también por live=all.
+  // Así no se pierden por cruce de fecha, huso horario o una fecha mal filtrada.
+  const livePayload = await requestApiFootball("/fixtures", { live: "all" });
+
+  const rangeFixtures = Array.isArray(rangePayload.response) ? rangePayload.response : [];
+  const liveFixtures = Array.isArray(livePayload.response) ? livePayload.response : [];
+  const fixtures = mergeFixtures(rangeFixtures, liveFixtures);
+
+  const updates = mapExternalFixturesToLocalUpdates(fixtures);
+
+  if (updates.length === 0) {
+    console.warn("API-Football respondió, pero no se pudo mapear ningún partido local.");
+    console.warn("Fixtures recibidos:", fixtures.slice(0, 12).map((fixture) => `${fixture?.teams?.home?.name} vs ${fixture?.teams?.away?.name}`).join(" | "));
+  }
+
+  return updates;
+}
+
+async function requestApiFootball(endpoint, params) {
+  const config = getApiConfig();
+  const url = new URL(`${config.baseUrl.replace(/\/$/, "")}${endpoint}`);
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      url.searchParams.set(key, String(value));
+    }
+  });
 
   const response = await fetch(url, {
     headers: {
@@ -87,14 +186,55 @@ async function fetchApiFootballUpdates() {
     }
   });
 
-  if (!response.ok) {
+  const payload = await response.json().catch(async () => {
     const text = await response.text().catch(() => "");
-    throw new Error(`API-Football HTTP ${response.status} ${text}`.trim());
+    return { errors: { parse: text || "No se pudo parsear JSON." }, response: [] };
+  });
+
+  if (!response.ok) {
+    throw new Error(`API-Football HTTP ${response.status}: ${JSON.stringify(payload.errors || payload).slice(0, 500)}`);
   }
 
-  const payload = await response.json();
-  const fixtures = Array.isArray(payload.response) ? payload.response : [];
-  return mapExternalFixturesToLocalUpdates(fixtures);
+  const errors = payload?.errors;
+  const hasErrors = errors && ((Array.isArray(errors) && errors.length > 0) || (!Array.isArray(errors) && Object.keys(errors).length > 0));
+  if (hasErrors) {
+    throw new Error(`API-Football errors: ${JSON.stringify(errors).slice(0, 700)}`);
+  }
+
+  return payload;
+}
+
+function mergeFixtures(...lists) {
+  const byId = new Map();
+  lists.flat().filter(Boolean).forEach((fixture) => {
+    const id = fixture?.fixture?.id || `${fixture?.teams?.home?.name}-${fixture?.teams?.away?.name}-${fixture?.fixture?.date}`;
+    byId.set(String(id), fixture);
+  });
+  return Array.from(byId.values());
+}
+
+function summarizePayload(payload, fixtures) {
+  return {
+    get: payload?.get,
+    parameters: payload?.parameters,
+    results: payload?.results,
+    errors: payload?.errors,
+    fixturesReceived: fixtures.length
+  };
+}
+
+function summarizeFixture(fixture) {
+  return {
+    fixtureId: fixture?.fixture?.id,
+    date: fixture?.fixture?.date,
+    statusShort: fixture?.fixture?.status?.short,
+    elapsed: fixture?.fixture?.status?.elapsed,
+    league: fixture?.league ? { id: fixture.league.id, name: fixture.league.name, season: fixture.league.season, round: fixture.league.round } : null,
+    home: fixture?.teams?.home ? { id: fixture.teams.home.id, name: fixture.teams.home.name, code: fixture.teams.home.code, winner: fixture.teams.home.winner } : null,
+    away: fixture?.teams?.away ? { id: fixture.teams.away.id, name: fixture.teams.away.name, code: fixture.teams.away.code, winner: fixture.teams.away.winner } : null,
+    goals: fixture?.goals,
+    penalty: fixture?.score?.penalty
+  };
 }
 
 function mapExternalFixturesToLocalUpdates(fixtures) {

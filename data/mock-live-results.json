@@ -46,5 +46,13 @@
     "scoreB": "0",
     "winnerId": "fra",
     "minute": null
+  },
+  {
+    "id": "mex-ecu",
+    "status": "live",
+    "scoreA": "1",
+    "scoreB": "0",
+    "winnerId": null,
+    "minute": null
   }
 ]
