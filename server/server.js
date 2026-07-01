@@ -27,6 +27,8 @@ app.get("/api/debug/config", (_req, res) => {
     apiFootballBaseUrl: getApiConfig().baseUrl,
     apiFootballLeagueId: getApiConfig().league,
     apiFootballSeason: getApiConfig().season,
+    espnBaseUrl: getEspnConfig().baseUrl,
+    espnDates: getEspnConfig().dates,
     tournamentStartDate: getApiConfig().from,
     tournamentEndDate: getApiConfig().to,
     lookaheadDays: Number(process.env.LOOKAHEAD_DAYS || 14),
@@ -81,6 +83,41 @@ app.get("/api/debug/api-football", async (_req, res) => {
   }
 });
 
+
+app.get("/api/debug/espn", async (_req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  if (getProvider() !== "espn") {
+    return res.status(400).json({
+      ok: false,
+      error: "API_PROVIDER no está en espn.",
+      provider: getProvider()
+    });
+  }
+
+  try {
+    const config = getEspnConfig();
+    const payloads = await requestEspnScoreboards();
+    const events = mergeEspnEvents(payloads.flatMap((payload) => Array.isArray(payload.events) ? payload.events : []));
+    const mapped = mapEspnEventsToLocalUpdates(events);
+
+    res.json({
+      ok: true,
+      config,
+      requests: payloads.map((payload) => ({
+        eventsReceived: Array.isArray(payload.events) ? payload.events.length : 0,
+        leagues: Array.isArray(payload.leagues) ? payload.leagues.map((league) => ({ id: league.id, name: league.name, slug: league.slug })) : []
+      })),
+      combinedEvents: events.length,
+      mappedUpdates: mapped.length,
+      mapped,
+      sampleEvents: events.slice(0, 30).map(summarizeEspnEvent)
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 app.get("/api/matches", async (_req, res) => {
   try {
     const updates = await getNormalizedUpdates();
@@ -100,6 +137,7 @@ app.listen(PORT, () => {
 function getProvider() {
   const provider = String(process.env.API_PROVIDER || "mock").trim().toLowerCase();
   if (provider === "api-football") return "api-football";
+  if (provider === "espn") return "espn";
   return "mock";
 }
 
@@ -117,6 +155,15 @@ function getApiConfig() {
 }
 
 async function getNormalizedUpdates() {
+  if (getProvider() === "espn") {
+    try {
+      return await fetchEspnUpdates();
+    } catch (error) {
+      console.warn("No se pudo consultar ESPN. Uso mock.", error.message);
+      return readMockUpdates();
+    }
+  }
+
   if (getProvider() === "api-football") {
     const key = process.env.API_FOOTBALL_KEY;
     if (!key) {
@@ -140,6 +187,225 @@ async function readMockUpdates() {
   const raw = await fs.readFile(filePath, "utf8");
   const data = JSON.parse(raw);
   return Array.isArray(data) ? data : [];
+}
+
+
+function getEspnConfig() {
+  const from = process.env.TOURNAMENT_START_DATE || getISODate(new Date());
+  const to = addDaysISO(new Date(), Number(process.env.LOOKAHEAD_DAYS || 30));
+
+  return {
+    baseUrl: process.env.ESPN_SCOREBOARD_URL || "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard",
+    from,
+    to,
+    dates: process.env.ESPN_DATES || `${compactDate(from)}-${compactDate(to)}`,
+    limit: process.env.ESPN_LIMIT || "950"
+  };
+}
+
+async function fetchEspnUpdates() {
+  const payloads = await requestEspnScoreboards();
+  const events = mergeEspnEvents(payloads.flatMap((payload) => Array.isArray(payload.events) ? payload.events : []));
+  const updates = mapEspnEventsToLocalUpdates(events);
+
+  if (updates.length === 0) {
+    console.warn("ESPN respondió, pero no se pudo mapear ningún partido local.");
+    console.warn("Eventos recibidos:", events.slice(0, 12).map((event) => event?.name || event?.shortName || event?.id).join(" | "));
+  }
+
+  return updates;
+}
+
+async function requestEspnScoreboards() {
+  const config = getEspnConfig();
+  const today = compactDate(getISODate(new Date()));
+  const requests = [
+    { limit: config.limit, dates: config.dates },
+    { limit: config.limit, dates: today }
+  ];
+
+  const seen = new Set();
+  const payloads = [];
+
+  for (const params of requests) {
+    const key = JSON.stringify(params);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    payloads.push(await requestEspnScoreboard(params));
+  }
+
+  return payloads;
+}
+
+async function requestEspnScoreboard(params) {
+  const config = getEspnConfig();
+  const url = new URL(config.baseUrl);
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      url.searchParams.set(key, String(value));
+    }
+  });
+
+  const response = await fetch(url, {
+    headers: {
+      "accept": "application/json",
+      "user-agent": "fixture-mundial/1.0"
+    }
+  });
+
+  const payload = await response.json().catch(async () => {
+    const text = await response.text().catch(() => "");
+    return { error: text || "No se pudo parsear JSON.", events: [] };
+  });
+
+  if (!response.ok) {
+    throw new Error(`ESPN HTTP ${response.status}: ${JSON.stringify(payload).slice(0, 500)}`);
+  }
+
+  return payload;
+}
+
+function mergeEspnEvents(events) {
+  const byId = new Map();
+  events.filter(Boolean).forEach((event) => {
+    byId.set(String(event.id || event.uid || event.name), event);
+  });
+  return Array.from(byId.values());
+}
+
+function mapEspnEventsToLocalUpdates(events) {
+  const updates = [];
+
+  MATCH_MAP.forEach((localMatch) => {
+    const external = events.find((event) => matchesLocalEspnGame(localMatch, event));
+    if (!external) return;
+
+    updates.push(normalizeEspnEvent(localMatch, external));
+  });
+
+  return updates;
+}
+
+function matchesLocalEspnGame(localMatch, event) {
+  const competitors = getEspnCompetitors(event);
+  if (competitors.length < 2) return false;
+
+  const [first, second] = competitors;
+  const firstMatchesA = teamMatches(localMatch.teamA, espnTeamName(first), espnTeamPayload(first));
+  const secondMatchesB = teamMatches(localMatch.teamB, espnTeamName(second), espnTeamPayload(second));
+  const firstMatchesB = teamMatches(localMatch.teamB, espnTeamName(first), espnTeamPayload(first));
+  const secondMatchesA = teamMatches(localMatch.teamA, espnTeamName(second), espnTeamPayload(second));
+
+  return (firstMatchesA && secondMatchesB) || (firstMatchesB && secondMatchesA);
+}
+
+function normalizeEspnEvent(localMatch, event) {
+  const competitors = getEspnCompetitors(event);
+  const [first, second] = competitors;
+
+  const firstMatchesA = teamMatches(localMatch.teamA, espnTeamName(first), espnTeamPayload(first));
+  const compA = firstMatchesA ? first : second;
+  const compB = firstMatchesA ? second : first;
+
+  const statusInfo = event?.status || getEspnCompetition(event)?.status || {};
+  const type = statusInfo?.type || {};
+  const state = String(type.state || "").toLowerCase();
+  const completed = Boolean(type.completed || statusInfo.completed);
+  const description = String(type.description || type.detail || statusInfo.displayClock || "").toLowerCase();
+
+  let status = "scheduled";
+  if (completed || state === "post" || ["final", "ft", "full time"].some((word) => description.includes(word))) {
+    status = "finished";
+  } else if (state === "in" || state === "live" || ["halftime", "half time", "in progress"].some((word) => description.includes(word))) {
+    status = "live";
+  }
+
+  const scoreA = espnScore(compA);
+  const scoreB = espnScore(compB);
+  const winnerId = status === "finished" ? resolveEspnWinnerId(localMatch, compA, compB, scoreA, scoreB) : null;
+
+  return {
+    id: localMatch.id,
+    status,
+    scoreA,
+    scoreB,
+    winnerId,
+    minute: normalizeEspnMinute(statusInfo, status),
+    kickoffISO: event?.date || getEspnCompetition(event)?.date || localMatch.kickoffISO
+  };
+}
+
+function getEspnCompetition(event) {
+  return Array.isArray(event?.competitions) ? event.competitions[0] : null;
+}
+
+function getEspnCompetitors(event) {
+  const competition = getEspnCompetition(event);
+  return Array.isArray(competition?.competitors) ? competition.competitors : [];
+}
+
+function espnTeamPayload(competitor) {
+  return competitor?.team || {};
+}
+
+function espnTeamName(competitor) {
+  const team = espnTeamPayload(competitor);
+  return [team.displayName, team.shortDisplayName, team.name, team.location, team.abbreviation]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function espnScore(competitor) {
+  const score = competitor?.score;
+  if (score === undefined || score === null || score === "") return "";
+  return String(score);
+}
+
+function resolveEspnWinnerId(localMatch, compA, compB, scoreA, scoreB) {
+  if (compA?.winner === true) return localMatch.teamA.id;
+  if (compB?.winner === true) return localMatch.teamB.id;
+
+  const a = NumberOrNull(scoreA);
+  const b = NumberOrNull(scoreB);
+  if (a !== null && b !== null && a !== b) return a > b ? localMatch.teamA.id : localMatch.teamB.id;
+
+  return null;
+}
+
+function normalizeEspnMinute(statusInfo, status) {
+  if (status !== "live") return null;
+
+  const raw = String(statusInfo?.displayClock || statusInfo?.type?.detail || statusInfo?.type?.shortDetail || "");
+  const match = raw.match(/(\d+)/);
+  if (match) return Number(match[1]);
+
+  return null;
+}
+
+function summarizeEspnEvent(event) {
+  const competitors = getEspnCompetitors(event);
+  return {
+    id: event?.id,
+    date: event?.date,
+    name: event?.name,
+    shortName: event?.shortName,
+    status: event?.status,
+    competitors: competitors.map((competitor) => ({
+      homeAway: competitor.homeAway,
+      score: competitor.score,
+      winner: competitor.winner,
+      team: {
+        id: competitor?.team?.id,
+        displayName: competitor?.team?.displayName,
+        shortDisplayName: competitor?.team?.shortDisplayName,
+        abbreviation: competitor?.team?.abbreviation
+      }
+    }))
+  };
+}
+
+function compactDate(isoDate) {
+  return String(isoDate).replace(/-/g, "");
 }
 
 async function fetchApiFootballUpdates() {

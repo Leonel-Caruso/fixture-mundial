@@ -6,8 +6,18 @@ Proyecto frontend + backend Node/Express para un fixture circular con:
 - modo **Grupos** con tablas completas.
 - modo **Predicción**, guardado por navegador/dispositivo con `localStorage`.
 - panel de **Partidos Hoy**.
-- backend `/api/matches` para usar datos mock o API real.
+- backend `/api/matches` para usar datos mock, ESPN o API-FOOTBALL.
 - favicon de pelota dorada de contorno.
+
+## Proveedor recomendado para este proyecto
+
+Para usar datos gratis, configurar:
+
+```env
+API_PROVIDER=espn
+```
+
+ESPN no requiere API key. El backend consulta el scoreboard público de ESPN y lo normaliza al formato que usa el frontend.
 
 ## Ejecutar localmente
 
@@ -35,66 +45,59 @@ Abrir:
 http://localhost:3000
 ```
 
-## Importante sobre `.env.example`
+## Variables recomendadas en Render
 
-`.env.example` es solo una plantilla para GitHub. El servidor no lo toma como configuración real.
-
-Para datos reales en tu PC necesitás un archivo `.env` en la raíz del proyecto, con:
+En Render, dejar una sola variable principal:
 
 ```env
-API_PROVIDER=api-football
-API_FOOTBALL_KEY=TU_API_KEY
+API_PROVIDER=espn
 ```
 
-No subas `.env` a GitHub. Este proyecto ya incluye `.gitignore` para evitarlo.
+Opcionales:
+
+```env
+TOURNAMENT_START_DATE=2026-06-28
+LOOKAHEAD_DAYS=30
+ESPN_LIMIT=950
+```
+
+No hace falta `API_FOOTBALL_KEY` si usás ESPN.
 
 ## Verificar proveedor activo
 
 Abrir:
 
 ```txt
-http://localhost:3000/api/health
+https://tu-url.onrender.com/api/health
 ```
 
-Si devuelve:
+Debe devolver:
 
 ```json
-{"provider":"mock"}
+{"provider":"espn"}
 ```
 
-estás usando datos de prueba, no datos reales.
-
-Para que se actualicen goles reales, debe devolver:
-
-```json
-{"provider":"api-football"}
-```
-
-También podés revisar:
+Luego revisar:
 
 ```txt
-http://localhost:3000/api/matches
+https://tu-url.onrender.com/api/matches
 ```
 
-Si un partido no aparece ahí con sus goles, el frontend no tiene forma de mostrar ese resultado real.
+Si un partido aparece ahí con goles, el frontend lo va a mostrar y actualizar.
 
-## Subir a una URL pública
+## Diagnóstico ESPN
 
-Para que tus compañeros entren desde una URL y vean actualizaciones reales, subir a Render como **Web Service Node/Express** y configurar las variables de entorno en Render, no en GitHub:
+Abrir:
 
-```env
-API_PROVIDER=api-football
-API_FOOTBALL_KEY=TU_API_KEY
-API_FOOTBALL_LEAGUE_ID=1
-API_FOOTBALL_SEASON=2026
+```txt
+https://tu-url.onrender.com/api/debug/espn
 ```
 
-Comandos:
+Devuelve:
 
-```bash
-Build Command: npm install
-Start Command: npm start
-```
+- cantidad de eventos recibidos.
+- partidos mapeados al fixture local.
+- muestra de eventos que llegaron desde ESPN.
 
 ## Modo mock
 
@@ -110,14 +113,15 @@ el backend lee solamente:
 data/mock-live-results.json
 ```
 
-Eso sirve para probar la interfaz, pero no consulta internet ni actualiza goles reales.
+Eso sirve para probar la interfaz, pero no consulta internet.
 
+## API-FOOTBALL
 
-## Diagnóstico API real
+También sigue existiendo soporte para:
 
-Si `/api/matches` devuelve `[]`, probá estos endpoints:
+```env
+API_PROVIDER=api-football
+API_FOOTBALL_KEY=TU_API_KEY
+```
 
-- `/api/debug/config`: muestra si Render tomó las variables correctas, sin exponer la key.
-- `/api/debug/api-football`: consulta API-FOOTBALL y devuelve cantidad de fixtures, errores oficiales y una muestra de partidos recibidos.
-
-La app consulta tanto el rango del Mundial (`league=1&season=2026`) como `live=all`, para no perder partidos por cruce de fecha u horario.
+Pero el plan gratis de API-FOOTBALL puede no tener acceso a temporada 2026.
