@@ -40,6 +40,17 @@ app.get("/api/debug/config", (_req, res) => {
   });
 });
 
+app.get("/api/debug/manual-results", async (_req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  try {
+    const manualResults = await readManualResults();
+    res.json({ ok: true, count: manualResults.length, manualResults });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 app.get("/api/debug/api-football", async (_req, res) => {
   res.set("Cache-Control", "no-store");
 
@@ -213,8 +224,9 @@ app.get("/api/debug/football-data", async (_req, res) => {
 app.get("/api/matches", async (_req, res) => {
   try {
     const updates = await getNormalizedUpdates();
+    const mergedUpdates = await mergeManualResultOverrides(updates);
     res.set("Cache-Control", "no-store");
-    res.json(updates);
+    res.json(mergedUpdates);
   } catch (error) {
     console.error("[api/matches]", error);
     res.status(500).json({ error: "No se pudieron obtener los partidos." });
@@ -304,6 +316,37 @@ async function readMockUpdates() {
   const raw = await fs.readFile(filePath, "utf8");
   const data = JSON.parse(raw);
   return Array.isArray(data) ? data : [];
+}
+
+async function readManualResults() {
+  const filePath = path.join(ROOT_DIR, "data", "manual-results.json");
+
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    if (error && error.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+async function mergeManualResultOverrides(updates) {
+  const byId = new Map();
+
+  (Array.isArray(updates) ? updates : []).forEach((update) => {
+    if (!update || !update.id) return;
+    byId.set(update.id, update);
+  });
+
+  const manualResults = await readManualResults();
+  manualResults.forEach((manual) => {
+    if (!manual || !manual.id) return;
+    const current = byId.get(manual.id) || {};
+    byId.set(manual.id, { ...current, ...manual });
+  });
+
+  return Array.from(byId.values());
 }
 
 

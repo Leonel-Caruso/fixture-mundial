@@ -181,3 +181,24 @@ Solo muestra penales cuando realmente hubo definición por penales.
 
 También evita inventar el minuto del partido usando la hora de inicio. Si el proveedor no informa minuto real,
 la tarjeta muestra `EN VIVO` sin minuto para no mostrar un dato incorrecto cuando hay demoras o retrasos.
+
+
+## Resultados manuales de respaldo
+
+La app consulta la API configurada, pero además lee `data/manual-results.json`.
+Ese archivo se usa como respaldo para partidos que la API gratuita todavía no actualizó o informa con demora.
+Si un partido ya terminó y la API no lo refleja, agregá o actualizá una fila con:
+
+```json
+{
+  "id": "aus-egy",
+  "status": "finished",
+  "scoreA": "1 (2)",
+  "scoreB": "1 (4)",
+  "winnerId": "egy",
+  "minute": null
+}
+```
+
+Luego subí el cambio a GitHub y redeployá en Render.
+Para verificarlo, podés abrir `/api/debug/manual-results`.

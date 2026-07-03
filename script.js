@@ -297,82 +297,180 @@ const OFFICIAL_RESULTS = {
   Tabla editable de fase de grupos.
   Para cambiar los datos reales, modificá solo PJ/PG/PE/PP/GF/GC/PTS de cada equipo.
 */
+const GROUP_TEAM_INFO = {
+  mex: { id: "mex", name: "México", iso: "mx", color: "#32d978" },
+  rsa: { id: "rsa", name: "Sudáfrica", iso: "za", color: "#58d68d" },
+  kor: { id: "kor", name: "Corea del Sur", iso: "kr", color: "#8bd3ff" },
+  cze: { id: "cze", name: "Chequia", iso: "cz", color: "#d94b4b" },
+
+  sui: { id: "sui", name: "Suiza", iso: "ch", color: "#ff6b6b" },
+  can: { id: "can", name: "Canadá", iso: "ca", color: "#ff6b6b" },
+  bih: { id: "bih", name: "Bosnia y Herzegovina", iso: "ba", color: "#78c4ff" },
+  qat: { id: "qat", name: "Catar", iso: "qa", color: "#8a1538" },
+
+  bra: { id: "bra", name: "Brasil", iso: "br", color: "#ffd84e" },
+  mar: { id: "mar", name: "Marruecos", iso: "ma", color: "#ff5d5d" },
+  sco: { id: "sco", name: "Escocia", iso: "gb-sct", color: "#6dbdff" },
+  hai: { id: "hai", name: "Haití", iso: "ht", color: "#5b8cff" },
+
+  usa: { id: "usa", name: "Estados Unidos", iso: "us", color: "#7ea7ff" },
+  aus: { id: "aus", name: "Australia", iso: "au", color: "#6dbdff" },
+  par: { id: "par", name: "Paraguay", iso: "py", color: "#ff7a7a" },
+  tur: { id: "tur", name: "Turquía", iso: "tr", color: "#ff5d5d" },
+
+  ger: { id: "ger", name: "Alemania", iso: "de", color: "#f6c744" },
+  civ: { id: "civ", name: "Costa de Marfil", iso: "ci", color: "#ffad5a" },
+  ecu: { id: "ecu", name: "Ecuador", iso: "ec", color: "#ffd166" },
+  cuw: { id: "cuw", name: "Curazao", iso: "cw", color: "#46b3ff" },
+
+  ned: { id: "ned", name: "Países Bajos", iso: "nl", color: "#ff9f43" },
+  jpn: { id: "jpn", name: "Japón", iso: "jp", color: "#ff7b7b" },
+  swe: { id: "swe", name: "Suecia", iso: "se", color: "#6dbdff" },
+  tun: { id: "tun", name: "Túnez", iso: "tn", color: "#ff6b6b" },
+
+  bel: { id: "bel", name: "Bélgica", iso: "be", color: "#ffd166" },
+  egy: { id: "egy", name: "Egipto", iso: "eg", color: "#ff7b7b" },
+  irn: { id: "irn", name: "Irán", iso: "ir", color: "#57d88c" },
+  nzl: { id: "nzl", name: "Nueva Zelanda", iso: "nz", color: "#6dbdff" },
+
+  esp: { id: "esp", name: "España", iso: "es", color: "#ffb11c" },
+  cpv: { id: "cpv", name: "Cabo Verde", iso: "cv", color: "#57a8ff" },
+  uru: { id: "uru", name: "Uruguay", iso: "uy", color: "#7bc7ff" },
+  ksa: { id: "ksa", name: "Arabia Saudita", iso: "sa", color: "#4fd98c" },
+
+  fra: { id: "fra", name: "Francia", iso: "fr", color: "#5b8cff" },
+  nor: { id: "nor", name: "Noruega", iso: "no", color: "#ff6b6b" },
+  sen: { id: "sen", name: "Senegal", iso: "sn", color: "#4fd98c" },
+  irq: { id: "irq", name: "Irak", iso: "iq", color: "#e05252" },
+
+  arg: { id: "arg", name: "Argentina", iso: "ar", color: "#7bc7ff" },
+  aut: { id: "aut", name: "Austria", iso: "at", color: "#ff6b6b" },
+  alg: { id: "alg", name: "Argelia", iso: "dz", color: "#57d88c" },
+  jor: { id: "jor", name: "Jordania", iso: "jo", color: "#b88a55" },
+
+  col: { id: "col", name: "Colombia", iso: "co", color: "#ffd84e" },
+  por: { id: "por", name: "Portugal", iso: "pt", color: "#32d978" },
+  cod: { id: "cod", name: "RD Congo", iso: "cd", color: "#78b5ff" },
+  uzb: { id: "uzb", name: "Uzbekistán", iso: "uz", color: "#67d6ff" },
+
+  eng: { id: "eng", name: "Inglaterra", iso: "gb-eng", color: "#f4f4f4" },
+  cro: { id: "cro", name: "Croacia", iso: "hr", color: "#ff7b7b" },
+  gha: { id: "gha", name: "Ghana", iso: "gh", color: "#ff7a59" },
+  pan: { id: "pan", name: "Panamá", iso: "pa", color: "#6dbdff" }
+};
+
 const GROUPS = [
   {
     name: "Grupo A",
     teams: [
-      groupTeam("can", 3, 2, 1, 0, 5, 2, 7),
-      groupTeam("mar", 3, 1, 2, 0, 4, 2, 5),
-      groupTeam("ned", 3, 1, 1, 1, 3, 3, 4),
-      groupTeam("rsa", 3, 0, 0, 3, 1, 6, 0)
+      groupTeam("mex", 3, 3, 0, 0, 6, 0, 9, true),
+      groupTeam("rsa", 3, 1, 1, 1, 2, 3, 4, true),
+      groupTeam("kor", 3, 1, 0, 2, 2, 3, 3),
+      groupTeam("cze", 3, 0, 1, 2, 2, 6, 1)
     ]
   },
   {
     name: "Grupo B",
     teams: [
-      groupTeam("fra", 3, 2, 1, 0, 6, 2, 7),
-      groupTeam("par", 3, 2, 0, 1, 5, 3, 6),
-      groupTeam("ger", 3, 1, 1, 1, 4, 3, 4),
-      groupTeam("swe", 3, 0, 0, 3, 1, 8, 0)
+      groupTeam("sui", 3, 2, 1, 0, 7, 3, 7, true),
+      groupTeam("can", 3, 1, 1, 1, 8, 3, 4, true),
+      groupTeam("bih", 3, 1, 1, 1, 5, 6, 4, true),
+      groupTeam("qat", 3, 0, 1, 2, 2, 10, 1)
     ]
   },
   {
     name: "Grupo C",
     teams: [
-      groupTeam("bel", 3, 2, 1, 0, 5, 1, 7),
-      groupTeam("sen", 3, 2, 0, 1, 4, 3, 6),
-      groupTeam("usa", 3, 1, 1, 1, 3, 3, 4),
-      groupTeam("bih", 3, 0, 0, 3, 1, 6, 0)
+      groupTeam("bra", 3, 2, 1, 0, 7, 1, 7, true),
+      groupTeam("mar", 3, 2, 1, 0, 6, 3, 7, true),
+      groupTeam("sco", 3, 1, 0, 2, 1, 4, 3),
+      groupTeam("hai", 3, 0, 0, 3, 2, 8, 0)
     ]
   },
   {
     name: "Grupo D",
     teams: [
-      groupTeam("esp", 3, 2, 1, 0, 7, 3, 7),
-      groupTeam("por", 3, 2, 0, 1, 6, 4, 6),
-      groupTeam("cro", 3, 1, 0, 2, 4, 5, 3),
-      groupTeam("aut", 3, 0, 1, 2, 2, 7, 1)
+      groupTeam("usa", 3, 2, 0, 1, 8, 4, 6, true),
+      groupTeam("aus", 3, 1, 1, 1, 2, 2, 4, true),
+      groupTeam("par", 3, 1, 1, 1, 2, 4, 4, true),
+      groupTeam("tur", 3, 1, 0, 2, 3, 5, 3)
     ]
   },
   {
     name: "Grupo E",
     teams: [
-      groupTeam("bra", 3, 3, 0, 0, 8, 2, 9),
-      groupTeam("nor", 3, 1, 1, 1, 4, 4, 4),
-      groupTeam("jpn", 3, 1, 0, 2, 3, 5, 3),
-      groupTeam("civ", 3, 0, 1, 2, 2, 6, 1)
+      groupTeam("ger", 3, 2, 0, 1, 10, 4, 6, true),
+      groupTeam("civ", 3, 2, 0, 1, 4, 2, 6, true),
+      groupTeam("ecu", 3, 1, 1, 1, 2, 2, 4, true),
+      groupTeam("cuw", 3, 0, 1, 2, 1, 9, 1)
     ]
   },
   {
     name: "Grupo F",
     teams: [
-      groupTeam("mex", 3, 2, 1, 0, 5, 2, 7),
-      groupTeam("eng", 3, 2, 0, 1, 6, 3, 6),
-      groupTeam("ecu", 3, 1, 1, 1, 4, 4, 4),
-      groupTeam("cod", 3, 0, 0, 3, 1, 7, 0)
+      groupTeam("ned", 3, 2, 1, 0, 10, 4, 7, true),
+      groupTeam("jpn", 3, 1, 2, 0, 7, 3, 5, true),
+      groupTeam("swe", 3, 1, 1, 1, 7, 7, 4, true),
+      groupTeam("tun", 3, 0, 0, 3, 2, 12, 0)
     ]
   },
   {
     name: "Grupo G",
     teams: [
-      groupTeam("col", 3, 2, 1, 0, 6, 2, 7),
-      groupTeam("sui", 3, 2, 0, 1, 5, 3, 6),
-      groupTeam("alg", 3, 1, 0, 2, 3, 5, 3),
-      groupTeam("gha", 3, 0, 1, 2, 2, 6, 1)
+      groupTeam("bel", 3, 1, 2, 0, 6, 2, 5, true),
+      groupTeam("egy", 3, 1, 2, 0, 5, 3, 5, true),
+      groupTeam("irn", 3, 0, 3, 0, 3, 3, 3),
+      groupTeam("nzl", 3, 0, 1, 2, 4, 10, 1)
     ]
   },
   {
     name: "Grupo H",
     teams: [
-      groupTeam("arg", 3, 2, 1, 0, 7, 2, 7),
-      groupTeam("aus", 3, 2, 0, 1, 4, 3, 6),
-      groupTeam("egy", 3, 1, 0, 2, 3, 5, 3),
-      groupTeam("cpv", 3, 0, 1, 2, 2, 6, 1)
+      groupTeam("esp", 3, 2, 1, 0, 5, 0, 7, true),
+      groupTeam("cpv", 3, 0, 3, 0, 2, 2, 3, true),
+      groupTeam("uru", 3, 0, 2, 1, 3, 4, 2),
+      groupTeam("ksa", 3, 0, 2, 1, 1, 5, 2)
+    ]
+  },
+  {
+    name: "Grupo I",
+    teams: [
+      groupTeam("fra", 3, 3, 0, 0, 10, 2, 9, true),
+      groupTeam("nor", 3, 2, 0, 1, 8, 7, 6, true),
+      groupTeam("sen", 3, 1, 0, 2, 8, 6, 3, true),
+      groupTeam("irq", 3, 0, 0, 3, 1, 12, 0)
+    ]
+  },
+  {
+    name: "Grupo J",
+    teams: [
+      groupTeam("arg", 3, 3, 0, 0, 8, 1, 9, true),
+      groupTeam("aut", 3, 1, 1, 1, 6, 6, 4, true),
+      groupTeam("alg", 3, 1, 1, 1, 5, 7, 4, true),
+      groupTeam("jor", 3, 0, 0, 3, 3, 8, 0)
+    ]
+  },
+  {
+    name: "Grupo K",
+    teams: [
+      groupTeam("col", 3, 2, 1, 0, 4, 1, 7, true),
+      groupTeam("por", 3, 1, 2, 0, 6, 1, 5, true),
+      groupTeam("cod", 3, 1, 1, 1, 4, 3, 4, true),
+      groupTeam("uzb", 3, 0, 0, 3, 2, 11, 0)
+    ]
+  },
+  {
+    name: "Grupo L",
+    teams: [
+      groupTeam("eng", 3, 2, 1, 0, 6, 2, 7, true),
+      groupTeam("cro", 3, 2, 0, 1, 5, 5, 6, true),
+      groupTeam("gha", 3, 1, 1, 1, 2, 2, 4, true),
+      groupTeam("pan", 3, 0, 0, 3, 0, 4, 0)
     ]
   }
 ];
 
-function groupTeam(teamId, played, wins, draws, losses, goalsFor, goalsAgainst, points) {
+function groupTeam(teamId, played, wins, draws, losses, goalsFor, goalsAgainst, points, qualified = false) {
   return {
     teamId,
     played,
@@ -382,7 +480,8 @@ function groupTeam(teamId, played, wins, draws, losses, goalsFor, goalsAgainst, 
     goalsFor,
     goalsAgainst,
     goalDifference: goalsFor - goalsAgainst,
-    points
+    points,
+    qualified
   };
 }
 
@@ -510,6 +609,10 @@ function syncMatchDateAndTime(match) {
 
 function rebuildTeamIndex() {
   Object.keys(TEAM_BY_ID).forEach((key) => delete TEAM_BY_ID[key]);
+
+  Object.values(GROUP_TEAM_INFO).forEach((team) => {
+    TEAM_BY_ID[team.id] = team;
+  });
 
   MATCHES.forEach((match) => {
     TEAM_BY_ID[match.teamA.id] = match.teamA;
@@ -843,7 +946,7 @@ function groupRowMarkup(row, rank) {
   const team = TEAM_BY_ID[row.teamId];
   if (!team) return "";
 
-  const qualifiedClass = rank <= 2 ? "is-qualified" : "";
+  const qualifiedClass = row.qualified || rank <= 2 ? "is-qualified" : "";
   const goalDifference = Number.isFinite(row.goalDifference)
     ? row.goalDifference
     : row.goalsFor - row.goalsAgainst;
