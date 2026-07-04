@@ -1,54 +1,71 @@
-# Fixture radial Mundial 1930-2026
+# Fixture Mundial 2026
 
-Versión del fixture con selector de mundiales integrado en el título.
+Versión corregida para que el fixture no quede detenido al terminar los 16avos.
 
-## Qué incluye
+## Cambios incluidos
 
-- Menú desplegable en **Mundial 2026** para elegir mundiales desde **1930 hasta 2026**.
-- La misma página y estética radial dorada del proyecto original.
-- Vista **Fixture** con cuadro circular dinámico según el formato de cada mundial.
-- Vista **Grupos** con tablas calculadas desde los partidos de cada torneo.
-- Vista **Predicción** reutilizada para poder tocar equipos y avanzar llaves cuando haya partidos sin definir.
-- Panel derecho adaptado:
-  - En 2026 muestra partidos de hoy.
-  - En mundiales anteriores muestra resumen con campeón y final.
+- Se agregaron partidos de **octavos**, **cuartos**, **semifinales** y **final**.
+- El panel lateral **Partidos Hoy** ya no mira solamente los 16avos: también revisa los cruces posteriores.
+- Los cruces futuros se muestran aunque todavía falte definir algún equipo, usando textos tipo `Ganador Octavos 1`.
+- Cuando la API o `data/manual-results.json` informa un ganador de octavos/cuartos/semis/final, el equipo avanza automáticamente en el gráfico.
+- El backend `server/match-map.js` ahora tiene mapeo para todas las rondas posteriores, con candidatos por rama del cuadro.
 
-## Fuente de datos histórica
-
-Los mundiales históricos se cargan desde el repositorio público `openfootball/worldcup.json` mediante el backend local:
-
-```txt
-/api/worldcup/:year
-```
-
-Ese endpoint descarga el JSON correspondiente desde:
-
-```txt
-https://raw.githubusercontent.com/openfootball/worldcup.json/master/{year}/worldcup.json
-```
-
-Por eso, para cambiar entre mundiales históricos, la PC necesita conexión a internet.
-
-## Cómo correr
+## Ejecutar localmente
 
 ```bash
 npm install
 npm start
 ```
 
-Luego abrir:
+Abrir:
 
 ```txt
 http://localhost:3000
 ```
 
-## Nota importante sobre 2026
+## Resultados manuales de respaldo
 
-El Mundial 2026 se toma de `openfootball/worldcup.json`, que es una fuente abierta actualizada manualmente. No es una API live segundo a segundo. Si necesitás resultados en vivo exactos al instante, conviene seguir usando un proveedor live/API y mapearlo sobre el fixture.
+Si la API gratuita tarda o no devuelve un partido, agregá/actualizá el partido en:
 
-## Archivos principales modificados
+```txt
+data/manual-results.json
+```
 
-- `index.html`: se mantiene la estructura, el título se transforma por JS en selector desplegable.
-- `script.js`: reescrito para soportar múltiples mundiales y fixture radial dinámico.
-- `style.css`: agregados estilos para selector, resumen y estados de carga.
-- `server/server.js`: agregado endpoint `/api/worldcup/:year`.
+Ejemplo para octavos:
+
+```json
+{
+  "id": "r16-1",
+  "status": "finished",
+  "scoreA": "2",
+  "scoreB": "1",
+  "winnerId": "can",
+  "minute": null
+}
+```
+
+IDs disponibles:
+
+- 16avos: `rsa-can`, `ned-mar`, `ger-par`, `fra-swe`, `bel-sen`, `usa-bih`, `esp-aut`, `por-cro`, `bra-jpn`, `civ-nor`, `mex-ecu`, `eng-cod`, `sui-alg`, `col-gha`, `aus-egy`, `arg-cpv`
+- Octavos: `r16-1` a `r16-8`
+- Cuartos: `qf-1` a `qf-4`
+- Semifinales: `sf-1`, `sf-2`
+- Final: `final`
+
+## Proveedores
+
+El servidor mantiene soporte para:
+
+- `mock`
+- `football-data`
+- `worldcup26`
+- `espn`
+- `api-football`
+
+Verificar configuración:
+
+```txt
+/api/health
+/api/matches
+/api/debug/config
+```
