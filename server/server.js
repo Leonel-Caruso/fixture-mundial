@@ -458,7 +458,15 @@ function matchesLocalFootballDataGame(localMatch, match) {
 
 function normalizeFootballDataMatch(localMatch, match) {
   const homeTeam = match?.homeTeam || {};
-  const localAIsHome = teamMatches(localMatch.teamA, footballDataTeamName(homeTeam), footballDataTeamPayload(homeTeam));
+  const awayTeam = match?.awayTeam || {};
+  const sideInfo = getLocalSides(
+    localMatch,
+    footballDataTeamName(homeTeam),
+    footballDataTeamPayload(homeTeam),
+    footballDataTeamName(awayTeam),
+    footballDataTeamPayload(awayTeam)
+  );
+  const localAIsHome = sideInfo.localAIsFirst;
   const status = normalizeFootballDataStatus(match?.status);
 
   const homeScore = getFootballDataScore(match, "home");
@@ -475,7 +483,7 @@ function normalizeFootballDataMatch(localMatch, match) {
     status,
     scoreA,
     scoreB,
-    winnerId: resolveFootballDataWinnerId(localMatch, match, scoreA, scoreB, localAIsHome),
+    winnerId: resolveFootballDataWinnerId(localMatch, match, scoreA, scoreB, localAIsHome, sideInfo.teamAId, sideInfo.teamBId),
     minute: null,
     kickoffISO: match?.utcDate || localMatch.kickoffISO
   };
@@ -544,16 +552,16 @@ function formatFootballDataScore(goals, penalties, status, showPenalties = false
   return String(g);
 }
 
-function resolveFootballDataWinnerId(localMatch, match, scoreA, scoreB, localAIsHome) {
+function resolveFootballDataWinnerId(localMatch, match, scoreA, scoreB, localAIsHome, teamAId = localMatch.teamA.id, teamBId = localMatch.teamB.id) {
   if (normalizeFootballDataStatus(match?.status) !== "finished") return null;
 
   const winner = String(match?.score?.winner || "").toUpperCase();
-  if (winner === "HOME_TEAM") return localAIsHome ? localMatch.teamA.id : localMatch.teamB.id;
-  if (winner === "AWAY_TEAM") return localAIsHome ? localMatch.teamB.id : localMatch.teamA.id;
+  if (winner === "HOME_TEAM") return localAIsHome ? teamAId : teamBId;
+  if (winner === "AWAY_TEAM") return localAIsHome ? teamBId : teamAId;
 
   const a = NumberOrNull(String(scoreA).replace(/\s*\(.*\)$/, ""));
   const b = NumberOrNull(String(scoreB).replace(/\s*\(.*\)$/, ""));
-  if (a !== null && b !== null && a !== b) return a > b ? localMatch.teamA.id : localMatch.teamB.id;
+  if (a !== null && b !== null && a !== b) return a > b ? teamAId : teamBId;
   return null;
 }
 
@@ -647,7 +655,9 @@ function matchesLocalWorldCup26Game(localMatch, game) {
 
 function normalizeWorldCup26Game(localMatch, game) {
   const homeName = getWorldCup26HomeName(game);
-  const localAIsHome = teamMatches(localMatch.teamA, homeName, { name: homeName });
+  const awayName = getWorldCup26AwayName(game);
+  const sideInfo = getLocalSides(localMatch, homeName, { name: homeName }, awayName, { name: awayName });
+  const localAIsHome = sideInfo.localAIsFirst;
 
   const homeScore = normalizeWorldCup26Score(game?.home_score);
   const awayScore = normalizeWorldCup26Score(game?.away_score);
@@ -656,7 +666,7 @@ function normalizeWorldCup26Game(localMatch, game) {
   const scoreB = localAIsHome ? awayScore : homeScore;
 
   const status = normalizeWorldCup26Status(game);
-  const winnerId = status === "finished" ? resolveWorldCup26WinnerId(localMatch, scoreA, scoreB) : null;
+  const winnerId = status === "finished" ? resolveWorldCup26WinnerId(localMatch, scoreA, scoreB, sideInfo.teamAId, sideInfo.teamBId) : null;
 
   return {
     id: localMatch.id,
@@ -711,10 +721,10 @@ function normalizeWorldCup26Minute(game, status) {
   return null;
 }
 
-function resolveWorldCup26WinnerId(localMatch, scoreA, scoreB) {
+function resolveWorldCup26WinnerId(localMatch, scoreA, scoreB, teamAId = localMatch.teamA.id, teamBId = localMatch.teamB.id) {
   const a = NumberOrNull(scoreA);
   const b = NumberOrNull(scoreB);
-  if (a !== null && b !== null && a !== b) return a > b ? localMatch.teamA.id : localMatch.teamB.id;
+  if (a !== null && b !== null && a !== b) return a > b ? teamAId : teamBId;
   return null;
 }
 
@@ -858,7 +868,14 @@ function normalizeEspnEvent(localMatch, event) {
   const competitors = getEspnCompetitors(event);
   const [first, second] = competitors;
 
-  const firstMatchesA = teamMatches(localMatch.teamA, espnTeamName(first), espnTeamPayload(first));
+  const sideInfo = getLocalSides(
+    localMatch,
+    espnTeamName(first),
+    espnTeamPayload(first),
+    espnTeamName(second),
+    espnTeamPayload(second)
+  );
+  const firstMatchesA = sideInfo.localAIsFirst;
   const compA = firstMatchesA ? first : second;
   const compB = firstMatchesA ? second : first;
 
@@ -877,7 +894,7 @@ function normalizeEspnEvent(localMatch, event) {
 
   const scoreA = espnScore(compA);
   const scoreB = espnScore(compB);
-  const winnerId = status === "finished" ? resolveEspnWinnerId(localMatch, compA, compB, scoreA, scoreB) : null;
+  const winnerId = status === "finished" ? resolveEspnWinnerId(localMatch, compA, compB, scoreA, scoreB, sideInfo.teamAId, sideInfo.teamBId) : null;
 
   return {
     id: localMatch.id,
@@ -916,13 +933,13 @@ function espnScore(competitor) {
   return String(score);
 }
 
-function resolveEspnWinnerId(localMatch, compA, compB, scoreA, scoreB) {
-  if (compA?.winner === true) return localMatch.teamA.id;
-  if (compB?.winner === true) return localMatch.teamB.id;
+function resolveEspnWinnerId(localMatch, compA, compB, scoreA, scoreB, teamAId = localMatch.teamA.id, teamBId = localMatch.teamB.id) {
+  if (compA?.winner === true) return teamAId;
+  if (compB?.winner === true) return teamBId;
 
   const a = NumberOrNull(scoreA);
   const b = NumberOrNull(scoreB);
-  if (a !== null && b !== null && a !== b) return a > b ? localMatch.teamA.id : localMatch.teamB.id;
+  if (a !== null && b !== null && a !== b) return a > b ? teamAId : teamBId;
 
   return null;
 }
@@ -1088,12 +1105,38 @@ function teamMatches(localTeam, apiName, apiTeam) {
     apiName,
     apiTeam?.code,
     apiTeam?.country,
-    apiTeam?.name
+    apiTeam?.name,
+    apiTeam?.displayName,
+    apiTeam?.shortDisplayName,
+    apiTeam?.abbreviation
   ]
     .filter(Boolean)
     .map(normalizeText);
 
-  return localTeam.aliases.some((alias) => haystack.includes(normalizeText(alias)));
+  return Array.isArray(localTeam?.aliases) && localTeam.aliases.some((alias) => haystack.includes(normalizeText(alias)));
+}
+
+function getLocalSides(localMatch, firstName, firstPayload, secondName, secondPayload) {
+  const localAIsFirst = teamMatches(localMatch.teamA, firstName, firstPayload);
+
+  return {
+    localAIsFirst,
+    teamAId: localAIsFirst
+      ? resolveLocalTeamId(localMatch.teamA, firstName, firstPayload)
+      : resolveLocalTeamId(localMatch.teamA, secondName, secondPayload),
+    teamBId: localAIsFirst
+      ? resolveLocalTeamId(localMatch.teamB, secondName, secondPayload)
+      : resolveLocalTeamId(localMatch.teamB, firstName, firstPayload)
+  };
+}
+
+function resolveLocalTeamId(localTeam, apiName, apiTeam) {
+  const candidates = Array.isArray(localTeam?.candidates) && localTeam.candidates.length
+    ? localTeam.candidates
+    : [localTeam];
+
+  const matchedCandidate = candidates.find((candidate) => teamMatches(candidate, apiName, apiTeam));
+  return matchedCandidate?.id || localTeam?.id || null;
 }
 
 function normalizeApiFootballFixture(localMatch, fixture) {
@@ -1102,7 +1145,9 @@ function normalizeApiFootballFixture(localMatch, fixture) {
   const minute = normalizeMinute(fixture?.fixture?.status?.elapsed, status);
 
   const homeName = fixture?.teams?.home?.name || "";
-  const localAIsHome = teamMatches(localMatch.teamA, homeName, fixture?.teams?.home);
+  const awayName = fixture?.teams?.away?.name || "";
+  const sideInfo = getLocalSides(localMatch, homeName, fixture?.teams?.home, awayName, fixture?.teams?.away);
+  const localAIsHome = sideInfo.localAIsFirst;
 
   const goalsHome = fixture?.goals?.home;
   const goalsAway = fixture?.goals?.away;
@@ -1119,7 +1164,9 @@ function normalizeApiFootballFixture(localMatch, fixture) {
         penA: NumberOrNull(localAIsHome ? penHome : penAway),
         penB: NumberOrNull(localAIsHome ? penAway : penHome),
         teamAApiWinner: localAIsHome ? fixture?.teams?.home?.winner : fixture?.teams?.away?.winner,
-        teamBApiWinner: localAIsHome ? fixture?.teams?.away?.winner : fixture?.teams?.home?.winner
+        teamBApiWinner: localAIsHome ? fixture?.teams?.away?.winner : fixture?.teams?.home?.winner,
+        teamAId: sideInfo.teamAId,
+        teamBId: sideInfo.teamBId
       })
     : null;
 
@@ -1158,15 +1205,18 @@ function formatScore(goals, penalties, statusShort) {
 }
 
 function resolveWinnerId(localMatch, data) {
-  if (data.teamAApiWinner === true) return localMatch.teamA.id;
-  if (data.teamBApiWinner === true) return localMatch.teamB.id;
+  const teamAId = data.teamAId || localMatch.teamA.id;
+  const teamBId = data.teamBId || localMatch.teamB.id;
+
+  if (data.teamAApiWinner === true) return teamAId;
+  if (data.teamBApiWinner === true) return teamBId;
 
   if (data.penA !== null && data.penB !== null && data.penA !== data.penB) {
-    return data.penA > data.penB ? localMatch.teamA.id : localMatch.teamB.id;
+    return data.penA > data.penB ? teamAId : teamBId;
   }
 
   if (data.scoreA !== null && data.scoreB !== null && data.scoreA !== data.scoreB) {
-    return data.scoreA > data.scoreB ? localMatch.teamA.id : localMatch.teamB.id;
+    return data.scoreA > data.scoreB ? teamAId : teamBId;
   }
 
   return null;

@@ -1,66 +1,19 @@
 # Fixture Mundial 2026
 
-## Proveedor gratis recomendado
+Versión corregida para que el fixture no quede detenido al terminar los 16avos.
 
-Esta versión agrega soporte para `worldcup26.ir`, una API gratuita del Mundial 2026 sin API key.
+## Cambios incluidos
 
-En Render usá:
-
-```env
-API_PROVIDER=worldcup26
-WORLDCUP26_BASE_URL=https://worldcup26.ir/get/games
-```
-
-Después hacé **Manual Deploy → Deploy latest commit**.
-
-Endpoints útiles:
-
-```txt
-/api/health
-/api/matches
-/api/debug/worldcup26
-```
-
----
-
-# Fixture Mundial 2026
-
-Proyecto frontend + backend Node/Express para un fixture circular con:
-
-- modo **Fixture** oficial.
-- modo **Grupos** con tablas completas.
-- modo **Predicción**, guardado por navegador/dispositivo con `localStorage`.
-- panel de **Partidos Hoy**.
-- backend `/api/matches` para usar datos mock, ESPN o API-FOOTBALL.
-- favicon de pelota dorada de contorno.
-
-## Proveedor recomendado para este proyecto
-
-Para usar datos gratis, configurar:
-
-```env
-API_PROVIDER=espn
-```
-
-ESPN no requiere API key. El backend consulta el scoreboard público de ESPN y lo normaliza al formato que usa el frontend.
+- Se agregaron partidos de **octavos**, **cuartos**, **semifinales** y **final**.
+- El panel lateral **Partidos Hoy** ya no mira solamente los 16avos: también revisa los cruces posteriores.
+- Los cruces futuros se muestran aunque todavía falte definir algún equipo, usando textos tipo `Ganador Octavos 1`.
+- Cuando la API o `data/manual-results.json` informa un ganador de octavos/cuartos/semis/final, el equipo avanza automáticamente en el gráfico.
+- El backend `server/match-map.js` ahora tiene mapeo para todas las rondas posteriores, con candidatos por rama del cuadro.
 
 ## Ejecutar localmente
 
 ```bash
 npm install
-```
-
-Copiar `.env.example` como `.env`:
-
-```bash
-cp .env.example .env
-```
-
-En Windows también podés hacerlo manualmente: duplicá `.env.example` y renombralo a `.env`.
-
-Luego ejecutar:
-
-```bash
 npm start
 ```
 
@@ -70,135 +23,49 @@ Abrir:
 http://localhost:3000
 ```
 
-## Variables recomendadas en Render
-
-En Render, dejar una sola variable principal:
-
-```env
-API_PROVIDER=espn
-```
-
-Opcionales:
-
-```env
-TOURNAMENT_START_DATE=2026-06-28
-LOOKAHEAD_DAYS=30
-ESPN_LIMIT=950
-```
-
-No hace falta `API_FOOTBALL_KEY` si usás ESPN.
-
-## Verificar proveedor activo
-
-Abrir:
-
-```txt
-https://tu-url.onrender.com/api/health
-```
-
-Debe devolver:
-
-```json
-{"provider":"espn"}
-```
-
-Luego revisar:
-
-```txt
-https://tu-url.onrender.com/api/matches
-```
-
-Si un partido aparece ahí con goles, el frontend lo va a mostrar y actualizar.
-
-## Diagnóstico ESPN
-
-Abrir:
-
-```txt
-https://tu-url.onrender.com/api/debug/espn
-```
-
-Devuelve:
-
-- cantidad de eventos recibidos.
-- partidos mapeados al fixture local.
-- muestra de eventos que llegaron desde ESPN.
-
-## Modo mock
-
-Si usás:
-
-```env
-API_PROVIDER=mock
-```
-
-el backend lee solamente:
-
-```txt
-data/mock-live-results.json
-```
-
-Eso sirve para probar la interfaz, pero no consulta internet.
-
-## API-FOOTBALL
-
-También sigue existiendo soporte para:
-
-```env
-API_PROVIDER=api-football
-API_FOOTBALL_KEY=TU_API_KEY
-```
-
-Pero el plan gratis de API-FOOTBALL puede no tener acceso a temporada 2026.
-
-
-## Proveedor football-data.org
-
-Esta versión permite usar:
-
-```env
-API_PROVIDER=football-data
-FOOTBALL_DATA_KEY=TU_TOKEN_DE_FOOTBALL_DATA
-FOOTBALL_DATA_BASE_URL=https://api.football-data.org/v4
-FOOTBALL_DATA_COMPETITION=WC
-TOURNAMENT_START_DATE=2026-06-28
-LOOKAHEAD_DAYS=30
-```
-
-Endpoints de diagnóstico:
-
-- `/api/health`
-- `/api/matches`
-- `/api/debug/football-data`
-
-Importante: el plan gratuito de football-data.org incluye fixtures, tablas y scores demorados. Para marcador en vivo real hace falta el plan con livescores.
-
-
-## Ajuste marcador football-data.org
-
-Esta versión evita mostrar `2 (0) - 0 (0)` cuando football-data.org informa penalties en cero.
-Solo muestra penales cuando realmente hubo definición por penales.
-
-También evita inventar el minuto del partido usando la hora de inicio. Si el proveedor no informa minuto real,
-la tarjeta muestra `EN VIVO` sin minuto para no mostrar un dato incorrecto cuando hay demoras o retrasos.
-
-
 ## Resultados manuales de respaldo
 
-La app consulta la API configurada, pero además lee `data/manual-results.json`.
-Ese archivo se usa como respaldo para partidos que la API gratuita todavía no actualizó o informa con demora.
-Si un partido ya terminó y la API no lo refleja, agregá o actualizá una fila con:
+Si la API gratuita tarda o no devuelve un partido, agregá/actualizá el partido en:
+
+```txt
+data/manual-results.json
+```
+
+Ejemplo para octavos:
 
 ```json
 {
-  "id": "aus-egy",
+  "id": "r16-1",
   "status": "finished",
-  "scoreA": "1 (2)",
-  "scoreB": "1 (4)",
-  "winnerId": "egy",
+  "scoreA": "2",
+  "scoreB": "1",
+  "winnerId": "can",
   "minute": null
 }
 ```
 
-Luego subí el cambio a GitHub y redeployá en Render.
-Para verificarlo, podés abrir `/api/debug/manual-results`.
+IDs disponibles:
+
+- 16avos: `rsa-can`, `ned-mar`, `ger-par`, `fra-swe`, `bel-sen`, `usa-bih`, `esp-aut`, `por-cro`, `bra-jpn`, `civ-nor`, `mex-ecu`, `eng-cod`, `sui-alg`, `col-gha`, `aus-egy`, `arg-cpv`
+- Octavos: `r16-1` a `r16-8`
+- Cuartos: `qf-1` a `qf-4`
+- Semifinales: `sf-1`, `sf-2`
+- Final: `final`
+
+## Proveedores
+
+El servidor mantiene soporte para:
+
+- `mock`
+- `football-data`
+- `worldcup26`
+- `espn`
+- `api-football`
+
+Verificar configuración:
+
+```txt
+/api/health
+/api/matches
+/api/debug/config
+```

@@ -272,6 +272,54 @@ const MATCHES = [
   }
 ];
 
+/*
+  Partidos de eliminación directa posteriores a 16avos.
+  IMPORTANTE:
+  - No se mezclan con MATCHES porque MATCHES arma la primera ronda del gráfico.
+  - teamAFrom/teamBFrom apuntan a los nodos ya clasificados del fixture.
+  - Cuando el backend/API devuelve un ganador para estos IDs, avanza automáticamente.
+*/
+const KNOCKOUT_MATCHES = [
+  knockoutMatch("r16-1", "round16", 0, "Octavos 1", "2026-07-04T13:00:00-03:00", "round16", 0, "Ganador Sudáfrica/Canadá", "round16", 1, "Ganador Países Bajos/Marruecos"),
+  knockoutMatch("r16-2", "round16", 1, "Octavos 2", "2026-07-04T17:00:00-03:00", "round16", 2, "Ganador Alemania/Paraguay", "round16", 3, "Ganador Francia/Suecia"),
+  knockoutMatch("r16-3", "round16", 2, "Octavos 3", "2026-07-05T13:00:00-03:00", "round16", 4, "Ganador Bélgica/Senegal", "round16", 5, "Ganador Estados Unidos/Bosnia"),
+  knockoutMatch("r16-4", "round16", 3, "Octavos 4", "2026-07-05T17:00:00-03:00", "round16", 6, "Ganador España/Austria", "round16", 7, "Ganador Portugal/Croacia"),
+  knockoutMatch("r16-5", "round16", 4, "Octavos 5", "2026-07-06T13:00:00-03:00", "round16", 8, "Ganador Brasil/Japón", "round16", 9, "Ganador Costa de Marfil/Noruega"),
+  knockoutMatch("r16-6", "round16", 5, "Octavos 6", "2026-07-06T17:00:00-03:00", "round16", 10, "Ganador México/Ecuador", "round16", 11, "Ganador Inglaterra/RD Congo"),
+  knockoutMatch("r16-7", "round16", 6, "Octavos 7", "2026-07-07T13:00:00-03:00", "round16", 12, "Ganador Suiza/Argelia", "round16", 13, "Ganador Colombia/Ghana"),
+  knockoutMatch("r16-8", "round16", 7, "Octavos 8", "2026-07-07T17:00:00-03:00", "round16", 14, "Ganador Australia/Egipto", "round16", 15, "Ganador Argentina/Cabo Verde"),
+
+  knockoutMatch("qf-1", "quarter", 0, "Cuartos 1", "2026-07-09T17:00:00-03:00", "quarter", 0, "Ganador Octavos 1", "quarter", 1, "Ganador Octavos 2"),
+  knockoutMatch("qf-2", "quarter", 1, "Cuartos 2", "2026-07-09T21:00:00-03:00", "quarter", 2, "Ganador Octavos 3", "quarter", 3, "Ganador Octavos 4"),
+  knockoutMatch("qf-3", "quarter", 2, "Cuartos 3", "2026-07-10T17:00:00-03:00", "quarter", 4, "Ganador Octavos 5", "quarter", 5, "Ganador Octavos 6"),
+  knockoutMatch("qf-4", "quarter", 3, "Cuartos 4", "2026-07-10T21:00:00-03:00", "quarter", 6, "Ganador Octavos 7", "quarter", 7, "Ganador Octavos 8"),
+
+  knockoutMatch("sf-1", "semi", 0, "Semifinal 1", "2026-07-14T21:00:00-03:00", "semi", 0, "Ganador Cuartos 1", "semi", 1, "Ganador Cuartos 2"),
+  knockoutMatch("sf-2", "semi", 1, "Semifinal 2", "2026-07-15T21:00:00-03:00", "semi", 2, "Ganador Cuartos 3", "semi", 3, "Ganador Cuartos 4"),
+
+  knockoutMatch("final", "final", 0, "Final", "2026-07-19T16:00:00-03:00", "final", 0, "Ganador Semifinal 1", "final", 1, "Ganador Semifinal 2")
+];
+
+function knockoutMatch(id, round, matchIndex, label, kickoffISO, teamARound, teamAIndex, teamALabel, teamBRound, teamBIndex, teamBLabel) {
+  const kickoff = new Date(kickoffISO);
+  return {
+    id,
+    round,
+    matchIndex,
+    label,
+    dateISO: toLocalISODate(kickoff),
+    kickoffISO,
+    time: toLocalTime(kickoff),
+    status: "scheduled",
+    scoreA: "",
+    scoreB: "",
+    minute: null,
+    winnerId: null,
+    teamAFrom: { round: teamARound, index: teamAIndex, label: teamALabel },
+    teamBFrom: { round: teamBRound, index: teamBIndex, label: teamBLabel }
+  };
+}
+
 const NEXT_ROUND = {
   round32: "round16",
   round16: "quarter",
@@ -291,6 +339,8 @@ const OFFICIAL_RESULTS = {
   semi: Array(4).fill(null),
   final: Array(2).fill(null)
 };
+
+const OFFICIAL_RESULT_ROUNDS = ["round16", "quarter", "semi", "final"];
 
 /*
   GROUPS
@@ -564,7 +614,7 @@ async function refreshMatchDataFromExternalSource() {
     if (!Array.isArray(updates)) return;
 
     updates.forEach((update) => {
-      const match = MATCHES.find((item) => item.id === update.id);
+      const match = findMatchById(update.id);
       if (!match) return;
 
       const nextKickoffISO = match.manualKickoffLock
@@ -587,6 +637,12 @@ async function refreshMatchDataFromExternalSource() {
   } catch (error) {
     console.warn("No se pudo actualizar desde LIVE_DATA_URL:", error);
   }
+}
+
+
+function findMatchById(matchId) {
+  return MATCHES.find((item) => item.id === matchId)
+    || KNOCKOUT_MATCHES.find((item) => item.id === matchId);
 }
 
 function syncMatchDateAndTime(match) {
@@ -646,10 +702,24 @@ function createPredictionState() {
 
 function applyOfficialWinners(targetState) {
   applyOfficialRound(targetState, "round32", MATCHES.map((match) => match.winnerId));
-  applyOfficialRound(targetState, "round16", OFFICIAL_RESULTS.round16);
-  applyOfficialRound(targetState, "quarter", OFFICIAL_RESULTS.quarter);
-  applyOfficialRound(targetState, "semi", OFFICIAL_RESULTS.semi);
-  applyOfficialRound(targetState, "final", OFFICIAL_RESULTS.final);
+
+  OFFICIAL_RESULT_ROUNDS.forEach((roundKey) => {
+    applyOfficialRound(targetState, roundKey, getOfficialWinnersForRound(roundKey));
+  });
+}
+
+function getOfficialWinnersForRound(roundKey) {
+  const base = Array.isArray(OFFICIAL_RESULTS[roundKey])
+    ? [...OFFICIAL_RESULTS[roundKey]]
+    : [];
+
+  KNOCKOUT_MATCHES
+    .filter((match) => match.round === roundKey)
+    .forEach((match) => {
+      if (match.winnerId) base[match.matchIndex] = match.winnerId;
+    });
+
+  return base;
 }
 
 function applyOfficialRound(targetState, fromRound, winners) {
@@ -692,7 +762,9 @@ function mergeOfficialResultsIntoPrediction(predictionState) {
     }
   });
 
-  Object.entries(OFFICIAL_RESULTS).forEach(([fromRound, winners]) => {
+  OFFICIAL_RESULT_ROUNDS.forEach((fromRound) => {
+    const winners = getOfficialWinnersForRound(fromRound);
+
     winners.forEach((winnerId, matchIndex) => {
       if (!winnerId) return;
 
@@ -995,6 +1067,59 @@ function formatGoalDifference(value) {
    PANEL DE PARTIDOS DE HOY
 ========================================================= */
 
+
+function getPanelMatches() {
+  const officialState = createOfficialState();
+  const knockoutMatches = KNOCKOUT_MATCHES
+    .map((match) => resolveKnockoutMatch(match, officialState));
+
+  return [...MATCHES, ...knockoutMatches];
+}
+
+function resolveKnockoutMatch(match, sourceState) {
+  const teamA = sourceState[match.teamAFrom.round]?.[match.teamAFrom.index] || makePlaceholderTeam(match.teamAFrom.label);
+  const teamB = sourceState[match.teamBFrom.round]?.[match.teamBFrom.index] || makePlaceholderTeam(match.teamBFrom.label);
+
+  return {
+    ...match,
+    teamA,
+    teamB,
+    label: !teamA.placeholder && !teamB.placeholder ? `${teamA.name} vs ${teamB.name}` : match.label
+  };
+}
+
+function makePlaceholderTeam(label) {
+  return {
+    id: `placeholder-${slugify(label)}`,
+    name: label || "Por definir",
+    iso: "",
+    color: "#d6b66b",
+    placeholder: true
+  };
+}
+
+function slugify(value) {
+  return String(value || "por-definir")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+}
+
+function toLocalISODate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function toLocalTime(date) {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
 function getTodayISO() {
   const now = new Date();
   const year = now.getFullYear();
@@ -1010,7 +1135,7 @@ function renderTodayMatches() {
   const now = new Date();
   const todayISO = getTodayISO();
 
-  const todayMatches = MATCHES
+  const todayMatches = getPanelMatches()
     .map((match) => ({ match, computed: getComputedMatchStatus(match, now) }))
     .filter(({ match, computed }) => {
       if (computed.hidden) return false;
@@ -1173,14 +1298,17 @@ function getLiveScore(score) {
 
 function matchTeamMarkup(team, score) {
   const visibleScore = hasVisibleScore(score) ? String(score) : "";
+  const isPlaceholder = !team || team.placeholder;
+  const teamName = team?.name || "Por definir";
+  const flagMarkup = isPlaceholder
+    ? `<span class="match-flag match-flag--placeholder">?</span>`
+    : `<span class="match-flag"><img src="${flagUrl(team.iso)}" alt="${team.name}" /></span>`;
 
   return `
-    <div class="match-row">
+    <div class="match-row ${isPlaceholder ? "is-placeholder" : ""}">
       <div class="match-team">
-        <span class="match-flag">
-          <img src="${flagUrl(team.iso)}" alt="${team.name}" />
-        </span>
-        <span class="match-name">${team.name}</span>
+        ${flagMarkup}
+        <span class="match-name">${teamName}</span>
       </div>
       <span class="match-score">${visibleScore}</span>
     </div>

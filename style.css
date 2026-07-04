@@ -2814,3 +2814,19 @@ body.fixture-mode .reset-button {
     min-height: 42px !important;
   }
 }
+
+/* Placeholder para cruces futuros todavía no resueltos */
+.match-row.is-placeholder .match-name {
+  color: rgba(255, 236, 190, 0.62);
+  font-weight: 700;
+}
+
+.match-flag.match-flag--placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 226, 160, 0.72);
+  font-size: 12px;
+  font-weight: 900;
+  background: rgba(255, 205, 105, 0.08);
+}
