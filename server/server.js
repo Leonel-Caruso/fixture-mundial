@@ -221,6 +221,40 @@ app.get("/api/debug/football-data", async (_req, res) => {
   }
 });
 
+
+app.get("/api/worldcup/:year", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+
+  const year = Number(req.params.year);
+  const allowedYears = new Set([2026, 2022, 2018, 2014, 2010, 2006, 2002, 1998, 1994, 1990, 1986, 1982, 1978, 1974, 1970, 1966, 1962, 1958, 1954, 1950, 1938, 1934, 1930]);
+
+  if (!allowedYears.has(year)) {
+    return res.status(400).json({ ok: false, error: "Mundial no soportado." });
+  }
+
+  try {
+    const url = `https://raw.githubusercontent.com/openfootball/worldcup.json/master/${year}/worldcup.json`;
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "fixture-radial-worldcups/1.0"
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenFootball respondió HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    res.json({ ...data, source: "openfootball/worldcup.json" });
+  } catch (error) {
+    console.error(`[api/worldcup/${year}]`, error);
+    res.status(502).json({
+      ok: false,
+      error: `No se pudo descargar la información del Mundial ${year}. Revisá la conexión a internet o intentá nuevamente.`
+    });
+  }
+});
+
 app.get("/api/matches", async (_req, res) => {
   try {
     const updates = await getNormalizedUpdates();
